@@ -121,6 +121,9 @@ def main():
         ("7_screenshot.png", "Playlist page"),
         ("8_screenshot.png", "Player / now playing"),
     ]
+    extra_feat_path = os.path.join(mockup_dir, "feat", "9_screenshot.png")
+    if os.path.exists(extra_feat_path):
+        feat_items.append(("9_screenshot.png", "Extra feature screenshot"))
     light_items = list(feat_items)
     dark_items = list(feat_items)
 
