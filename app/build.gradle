@@ -153,3 +153,25 @@ tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
             "-Xplugin=${configurations.parcelizeCompiler.singleFile}"
     ]
 }
+
+tasks.register("generateMockups") {
+    group = "release"
+    description = "Capture mockup screenshots via adb (prompts for each screen)."
+    doLast {
+        def script = new File(rootDir, "tools/generate_mockups.py").absolutePath
+        def serial = System.getenv("ADB_SERIAL")
+        def cmd = ["python", script, "--set", "all"]
+        if (serial != null && !serial.trim().isEmpty()) {
+            cmd += ["--serial", serial.trim()]
+        }
+        exec {
+            commandLine cmd
+        }
+    }
+}
+
+tasks.register("releaseWithMockups") {
+    group = "release"
+    description = "Generate mockup screenshots then assemble release."
+    dependsOn "generateMockups", "assembleRelease"
+}
