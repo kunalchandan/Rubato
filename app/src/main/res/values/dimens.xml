@@ -8,4 +8,8 @@
     <dimen name="radius">2dp</dimen>
     <dimen name="dots_height">2dp</dimen>
     <dimen name="downloaded_item_padding">12dp</dimen>
+    <dimen name="flashback_corner_radius">8dp</dimen>
+    <dimen name="widget_corner_radius">20dp</dimen>
+    <dimen name="widget_control_radius">10dp</dimen>
+    <dimen name="widget_circle_size">96dp</dimen>
 </resources>

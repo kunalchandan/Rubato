@@ -54,6 +54,186 @@
     <color name="md_theme_dark_inverseSurface">#E6E1E5</color>
     <color name="md_theme_dark_primaryInverse">#6750A4</color>
 
+    <color name="theme_ocean_primary">#1B6EF3</color>
+    <color name="theme_ocean_onPrimary">#FFFFFF</color>
+    <color name="theme_ocean_primaryContainer">#D7E3FF</color>
+    <color name="theme_ocean_onPrimaryContainer">#001A43</color>
+    <color name="theme_ocean_secondary">#4D5F7C</color>
+    <color name="theme_ocean_onSecondary">#FFFFFF</color>
+    <color name="theme_ocean_secondaryContainer">#D9E3F8</color>
+    <color name="theme_ocean_onSecondaryContainer">#0F1A2C</color>
+    <color name="theme_ocean_tertiary">#006B5E</color>
+    <color name="theme_ocean_onTertiary">#FFFFFF</color>
+    <color name="theme_ocean_tertiaryContainer">#9FF2E3</color>
+    <color name="theme_ocean_onTertiaryContainer">#00201B</color>
+
+    <color name="theme_forest_primary">#2E7D32</color>
+    <color name="theme_forest_onPrimary">#FFFFFF</color>
+    <color name="theme_forest_primaryContainer">#B8F5B9</color>
+    <color name="theme_forest_onPrimaryContainer">#00210C</color>
+    <color name="theme_forest_secondary">#4B6355</color>
+    <color name="theme_forest_onSecondary">#FFFFFF</color>
+    <color name="theme_forest_secondaryContainer">#CDE9D5</color>
+    <color name="theme_forest_onSecondaryContainer">#071F14</color>
+    <color name="theme_forest_tertiary">#63621A</color>
+    <color name="theme_forest_onTertiary">#FFFFFF</color>
+    <color name="theme_forest_tertiaryContainer">#E9E7A1</color>
+    <color name="theme_forest_onTertiaryContainer">#1E1D00</color>
+
+    <color name="theme_sunset_primary">#FF6F43</color>
+    <color name="theme_sunset_onPrimary">#FFFFFF</color>
+    <color name="theme_sunset_primaryContainer">#FFDAD1</color>
+    <color name="theme_sunset_onPrimaryContainer">#3A0B00</color>
+    <color name="theme_sunset_secondary">#8E5A4A</color>
+    <color name="theme_sunset_onSecondary">#FFFFFF</color>
+    <color name="theme_sunset_secondaryContainer">#FFDCCD</color>
+    <color name="theme_sunset_onSecondaryContainer">#34110A</color>
+    <color name="theme_sunset_tertiary">#6E5E2C</color>
+    <color name="theme_sunset_onTertiary">#FFFFFF</color>
+    <color name="theme_sunset_tertiaryContainer">#F7E2A4</color>
+    <color name="theme_sunset_onTertiaryContainer">#211B00</color>
+
+    <color name="theme_rose_primary">#C2185B</color>
+    <color name="theme_rose_onPrimary">#FFFFFF</color>
+    <color name="theme_rose_primaryContainer">#FFD9E1</color>
+    <color name="theme_rose_onPrimaryContainer">#3E001D</color>
+    <color name="theme_rose_secondary">#70565D</color>
+    <color name="theme_rose_onSecondary">#FFFFFF</color>
+    <color name="theme_rose_secondaryContainer">#FAD9E1</color>
+    <color name="theme_rose_onSecondaryContainer">#28171C</color>
+    <color name="theme_rose_tertiary">#8B4A5A</color>
+    <color name="theme_rose_onTertiary">#FFFFFF</color>
+    <color name="theme_rose_tertiaryContainer">#FFD9E2</color>
+    <color name="theme_rose_onTertiaryContainer">#34121C</color>
+
+    <color name="theme_slate_primary">#3E5C76</color>
+    <color name="theme_slate_onPrimary">#FFFFFF</color>
+    <color name="theme_slate_primaryContainer">#D4E3F3</color>
+    <color name="theme_slate_onPrimaryContainer">#001C2B</color>
+    <color name="theme_slate_secondary">#54636D</color>
+    <color name="theme_slate_onSecondary">#FFFFFF</color>
+    <color name="theme_slate_secondaryContainer">#D8E3EA</color>
+    <color name="theme_slate_onSecondaryContainer">#111E26</color>
+    <color name="theme_slate_tertiary">#6A4E5A</color>
+    <color name="theme_slate_onTertiary">#FFFFFF</color>
+    <color name="theme_slate_tertiaryContainer">#F2DADF</color>
+    <color name="theme_slate_onTertiaryContainer">#24101C</color>
+
+    <color name="theme_citrus_primary">#F57C00</color>
+    <color name="theme_citrus_onPrimary">#FFFFFF</color>
+    <color name="theme_citrus_primaryContainer">#FFE0B2</color>
+    <color name="theme_citrus_onPrimaryContainer">#5A2A00</color>
+    <color name="theme_citrus_secondary">#F9A825</color>
+    <color name="theme_citrus_onSecondary">#FFFFFF</color>
+    <color name="theme_citrus_secondaryContainer">#FFE082</color>
+    <color name="theme_citrus_onSecondaryContainer">#4B3000</color>
+    <color name="theme_citrus_tertiary">#7CB342</color>
+    <color name="theme_citrus_onTertiary">#FFFFFF</color>
+    <color name="theme_citrus_tertiaryContainer">#DCEDC8</color>
+    <color name="theme_citrus_onTertiaryContainer">#2B3D00</color>
+
+    <color name="theme_sage_primary">#5E8C61</color>
+    <color name="theme_sage_onPrimary">#FFFFFF</color>
+    <color name="theme_sage_primaryContainer">#DDE7D8</color>
+    <color name="theme_sage_onPrimaryContainer">#1F2C1E</color>
+    <color name="theme_sage_secondary">#6E7B8B</color>
+    <color name="theme_sage_onSecondary">#FFFFFF</color>
+    <color name="theme_sage_secondaryContainer">#E0E4EA</color>
+    <color name="theme_sage_onSecondaryContainer">#27303A</color>
+    <color name="theme_sage_tertiary">#C47A5A</color>
+    <color name="theme_sage_onTertiary">#FFFFFF</color>
+    <color name="theme_sage_tertiaryContainer">#F2D5C8</color>
+    <color name="theme_sage_onTertiaryContainer">#3D2419</color>
+
+    <color name="theme_lagoon_primary">#00796B</color>
+    <color name="theme_lagoon_onPrimary">#FFFFFF</color>
+    <color name="theme_lagoon_primaryContainer">#B2DFDB</color>
+    <color name="theme_lagoon_onPrimaryContainer">#00201C</color>
+    <color name="theme_lagoon_secondary">#4E6E67</color>
+    <color name="theme_lagoon_onSecondary">#FFFFFF</color>
+    <color name="theme_lagoon_secondaryContainer">#CEE5DD</color>
+    <color name="theme_lagoon_onSecondaryContainer">#0A1F1B</color>
+    <color name="theme_lagoon_tertiary">#5A7E2C</color>
+    <color name="theme_lagoon_onTertiary">#FFFFFF</color>
+    <color name="theme_lagoon_tertiaryContainer">#DDE9C7</color>
+    <color name="theme_lagoon_onTertiaryContainer">#1A2600</color>
+
+    <color name="theme_dune_primary">#B36A2E</color>
+    <color name="theme_dune_onPrimary">#FFFFFF</color>
+    <color name="theme_dune_primaryContainer">#FFDCC8</color>
+    <color name="theme_dune_onPrimaryContainer">#3D1800</color>
+    <color name="theme_dune_secondary">#7A6A58</color>
+    <color name="theme_dune_onSecondary">#FFFFFF</color>
+    <color name="theme_dune_secondaryContainer">#E9DCCF</color>
+    <color name="theme_dune_onSecondaryContainer">#2B2116</color>
+    <color name="theme_dune_tertiary">#7D8F3A</color>
+    <color name="theme_dune_onTertiary">#FFFFFF</color>
+    <color name="theme_dune_tertiaryContainer">#E5EDC4</color>
+    <color name="theme_dune_onTertiaryContainer">#1E2600</color>
+
+    <color name="theme_midnight_primary">#8CB4FF</color>
+    <color name="theme_midnight_onPrimary">#0A2A66</color>
+    <color name="theme_midnight_primaryContainer">#1E3A75</color>
+    <color name="theme_midnight_onPrimaryContainer">#D6E3FF</color>
+    <color name="theme_midnight_secondary">#A0B7C3</color>
+    <color name="theme_midnight_onSecondary">#1B2B33</color>
+    <color name="theme_midnight_secondaryContainer">#2F3F49</color>
+    <color name="theme_midnight_onSecondaryContainer">#C9D6DD</color>
+    <color name="theme_midnight_tertiary">#B6A0FF</color>
+    <color name="theme_midnight_onTertiary">#2A1F66</color>
+    <color name="theme_midnight_tertiaryContainer">#3C2F82</color>
+    <color name="theme_midnight_onTertiaryContainer">#E3DAFF</color>
+
+    <color name="theme_ember_primary">#FFB870</color>
+    <color name="theme_ember_onPrimary">#4B2A00</color>
+    <color name="theme_ember_primaryContainer">#6B3F0B</color>
+    <color name="theme_ember_onPrimaryContainer">#FFE1C2</color>
+    <color name="theme_ember_secondary">#E1BFA3</color>
+    <color name="theme_ember_onSecondary">#3A2A1C</color>
+    <color name="theme_ember_secondaryContainer">#533C2A</color>
+    <color name="theme_ember_onSecondaryContainer">#FADCC4</color>
+    <color name="theme_ember_tertiary">#D08A7C</color>
+    <color name="theme_ember_onTertiary">#3F1F1A</color>
+    <color name="theme_ember_tertiaryContainer">#5A2E28</color>
+    <color name="theme_ember_onTertiaryContainer">#FFDAD3</color>
+
+    <color name="theme_obsidian_primary">#9DB2C1</color>
+    <color name="theme_obsidian_onPrimary">#1B2A33</color>
+    <color name="theme_obsidian_primaryContainer">#374955</color>
+    <color name="theme_obsidian_onPrimaryContainer">#C7D5DE</color>
+    <color name="theme_obsidian_secondary">#B0BEC5</color>
+    <color name="theme_obsidian_onSecondary">#1D262B</color>
+    <color name="theme_obsidian_secondaryContainer">#3C4B52</color>
+    <color name="theme_obsidian_onSecondaryContainer">#D2DCE1</color>
+    <color name="theme_obsidian_tertiary">#CBAF9C</color>
+    <color name="theme_obsidian_onTertiary">#2A1C14</color>
+    <color name="theme_obsidian_tertiaryContainer">#4A3B32</color>
+    <color name="theme_obsidian_onTertiaryContainer">#F0DFD3</color>
+
+    <color name="theme_aurora_primary">#7CC9B7</color>
+    <color name="theme_aurora_onPrimary">#00392F</color>
+    <color name="theme_aurora_primaryContainer">#1F5247</color>
+    <color name="theme_aurora_onPrimaryContainer">#9FE6D1</color>
+    <color name="theme_aurora_secondary">#A3B7C3</color>
+    <color name="theme_aurora_onSecondary">#1A2C34</color>
+    <color name="theme_aurora_secondaryContainer">#33424B</color>
+    <color name="theme_aurora_onSecondaryContainer">#C4D7E0</color>
+    <color name="theme_aurora_tertiary">#7FB4FF</color>
+    <color name="theme_aurora_onTertiary">#0C2A5A</color>
+    <color name="theme_aurora_tertiaryContainer">#23406F</color>
+    <color name="theme_aurora_onTertiaryContainer">#D4E3FF</color>
+
+    <color name="theme_custom_primary">#5A8DEE</color>
+    <color name="theme_custom_secondary">#8B6EDC</color>
+    <color name="theme_custom_tertiary">#2F9B7A</color>
+
+    <color name="theme_amoled_background">#000000</color>
+    <color name="theme_amoled_surface">#000000</color>
+    <color name="theme_amoled_surfaceVariant">#121212</color>
+    <color name="theme_amoled_onSurface">#E6E1E5</color>
+    <color name="theme_amoled_onSurfaceVariant">#C7C7C7</color>
+    <color name="theme_amoled_outline">#2A2A2A</color>
+
     <color name="gradientTitleColor">#FFFFFF</color>
     <color name="gradientSubtitleColor">#BFBFBF</color>
     <color name="titleTextColor">#252525</color>
@@ -66,6 +246,14 @@
 
     <color name="searchPlaceholderColor">#303030</color>
     <color name="searchColor">#252525</color>
+    <color name="queue_swipe_green">#1DB954</color>
+    <color name="queue_swipe_gold">#F5C451</color>
+
+    <color name="widget_background">#FFFBFE</color>
+    <color name="widget_text_primary">#1C1B1F</color>
+    <color name="widget_text_secondary">#49454F</color>
+    <color name="widget_icon">#6750A4</color>
+    <color name="widget_control_bg">#E7E0EC</color>
 
     <!-- <color name="iconLauncher">https://icon.kitchen/i/H4sIAAAAAAAAAzWQu27DMAxF%2F4VdPbhBsmTt0LVAuxVFIUuUIoAWDT36gJF%2Fz5WCcJCow8uXdvox0rjQeScfXiRuJtf%2BKIyLHHvTpNJE0WoCEE7le5GW6TrREj7%2BNwYN2bjIqevA%2BK%2B2DLxTfbi0ajHR3pNeH2oorIrmZwiejmaevUeFgQ4dzcOATAqCKscT8jFlF%2FS4H4a4D2%2FGuZjCaKobnQ%2BniXIMFzTp7qK16nr3hf2gY5b3ixkb2JgtWoCt6pr0D%2FlEW5c1ur69Fpy%2FvNDX9QZCITMSMwEAAA%3D%3D</color> -->
 </resources>

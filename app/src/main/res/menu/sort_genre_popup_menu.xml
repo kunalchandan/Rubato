@@ -6,4 +6,7 @@
     <item
         android:id="@+id/menu_genre_sort_random"
         android:title="@string/menu_sort_random" />
+    <item
+        android:id="@+id/menu_genre_sort_most_songs"
+        android:title="@string/menu_sort_most_songs" />
 </menu>

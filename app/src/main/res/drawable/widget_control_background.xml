@@ -1,0 +1,4 @@
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/widget_control_bg" />
+    <corners android:radius="@dimen/widget_control_radius" />
+</shape>

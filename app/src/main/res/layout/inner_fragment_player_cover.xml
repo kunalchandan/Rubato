@@ -15,6 +15,35 @@
         app:layout_constraintDimensionRatio="1:1"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <one.chandan.rubato.ui.view.VisualizerView
+        android:id="@+id/now_playing_visualizer_view"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:importantForAccessibility="no"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@+id/now_playing_song_cover_image_view"
+        app:layout_constraintEnd_toEndOf="@+id/now_playing_song_cover_image_view"
+        app:layout_constraintStart_toStartOf="@+id/now_playing_song_cover_image_view"
+        app:layout_constraintTop_toTopOf="@+id/now_playing_song_cover_image_view" />
+
+    <Button
+        android:id="@+id/now_playing_visualizer_settings_button"
+        style="@style/Widget.Material3.Button.TonalButton.Icon"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_margin="16dp"
+        android:contentDescription="@string/visualizer_settings_title"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:alpha="0.8"
+        android:visibility="gone"
+        app:cornerRadius="64dp"
+        app:icon="@drawable/ic_settings"
+        app:layout_constraintStart_toStartOf="@+id/now_playing_song_cover_image_view"
+        app:layout_constraintTop_toTopOf="@+id/now_playing_song_cover_image_view" />
+
     <Button
         android:id="@+id/now_playing_tap_button"
         style="@style/Widget.Material3.Button.TonalButton.Icon"
@@ -54,9 +83,7 @@
             android:insetRight="0dp"
             android:insetBottom="0dp"
             app:cornerRadius="30dp"
-            app:icon="@drawable/ic_file_download"
-            app:layout_constraintBottom_toTopOf="@+id/horizontal_guideline"
-            app:layout_constraintEnd_toStartOf="@+id/vertical_guideline" />
+            app:icon="@drawable/ic_file_download" />
 
         <Button
             android:id="@+id/inner_button_top_right"
@@ -69,23 +96,20 @@
             android:insetRight="0dp"
             android:insetBottom="0dp"
             app:cornerRadius="30dp"
-            app:icon="@drawable/ic_playlist_add"
-            app:layout_constraintBottom_toTopOf="@+id/horizontal_guideline"
-            app:layout_constraintStart_toEndOf="@+id/vertical_guideline" />
+            app:icon="@drawable/ic_playlist_add" />
 
-        <androidx.constraintlayout.widget.Guideline
-            android:id="@+id/horizontal_guideline"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            app:layout_constraintGuide_percent="0.50" />
-
-        <androidx.constraintlayout.widget.Guideline
-            android:id="@+id/vertical_guideline"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            app:layout_constraintGuide_percent="0.50" />
+        <Button
+            android:id="@+id/inner_button_visualizer"
+            style="@style/Widget.Material3.Button.TonalButton.Icon"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_margin="4dp"
+            android:insetLeft="0dp"
+            android:insetTop="0dp"
+            android:insetRight="0dp"
+            android:insetBottom="0dp"
+            app:cornerRadius="30dp"
+            app:icon="@drawable/ic_graphic_eq" />
 
         <Button
             android:id="@+id/inner_button_bottom_left"
@@ -98,9 +122,7 @@
             android:insetRight="0dp"
             android:insetBottom="0dp"
             app:cornerRadius="30dp"
-            app:icon="@drawable/ic_mix_from_here"
-            app:layout_constraintEnd_toStartOf="@+id/vertical_guideline"
-            app:layout_constraintTop_toBottomOf="@+id/horizontal_guideline" />
+            app:icon="@drawable/ic_mix_from_here" />
 
         <Button
             android:id="@+id/inner_button_bottom_right"
@@ -113,9 +135,23 @@
             android:insetRight="0dp"
             android:insetBottom="0dp"
             app:cornerRadius="30dp"
-            app:icon="@drawable/ic_bookmark"
-            app:layout_constraintStart_toEndOf="@+id/vertical_guideline"
-            app:layout_constraintTop_toBottomOf="@+id/horizontal_guideline" />
+            app:icon="@drawable/ic_bookmark" />
+
+        <androidx.constraintlayout.helper.widget.Flow
+            android:id="@+id/now_playing_cover_action_flow"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            app:constraint_referenced_ids="inner_button_top_left,inner_button_top_right,inner_button_visualizer,inner_button_bottom_left,inner_button_bottom_right"
+            app:flow_horizontalGap="16dp"
+            app:flow_horizontalStyle="packed"
+            app:flow_maxElementsWrap="3"
+            app:flow_verticalGap="16dp"
+            app:flow_verticalStyle="packed"
+            app:flow_wrapMode="chain"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <Button
             android:id="@+id/inner_button_bottom_right_alternative"
@@ -129,8 +165,10 @@
             android:insetBottom="0dp"
             app:cornerRadius="30dp"
             app:icon="@drawable/ic_lyrics"
-            app:layout_constraintStart_toEndOf="@+id/vertical_guideline"
-            app:layout_constraintTop_toBottomOf="@+id/horizontal_guideline" />
+            app:layout_constraintBottom_toBottomOf="@+id/inner_button_bottom_right"
+            app:layout_constraintEnd_toEndOf="@+id/inner_button_bottom_right"
+            app:layout_constraintStart_toStartOf="@+id/inner_button_bottom_right"
+            app:layout_constraintTop_toTopOf="@+id/inner_button_bottom_right" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

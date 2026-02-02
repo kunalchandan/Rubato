@@ -1,19 +1,17 @@
 apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-parcelize'
 
 android {
-    compileSdk 35
-    buildToolsVersion = '35.0.0'
+    compileSdk = 35
 
     defaultConfig {
-        minSdkVersion 24
-        targetSdk 35
+        minSdkVersion = 24
+        targetSdk = 35
+        applicationId "one.chandan.rubato"
 
-        versionCode 26
-        versionName '3.9.0'
+        versionCode = 27
+        versionName = '4.0.0'
 
-        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        testInstrumentationRunner = 'androidx.test.runner.AndroidJUnitRunner'
 
         javaCompileOptions {
             annotationProcessorOptions {
@@ -25,53 +23,80 @@ android {
         }
     }
 
-    flavorDimensions += "default"
-
-    productFlavors {
-        tempo {
-            dimension = "default"
-            applicationId 'com.cappielloantonio.tempo'
-        }
-
-        notquitemy {
-            dimension = "default"
-            applicationId "com.cappielloantonio.notquitemy.tempo"
-        }
-
-        play {
-            dimension = "default"
-            applicationId "com.cappielloantonio.play.tempo"
-        }
-    }
-
     buildTypes {
         release {
-            shrinkResources true
-            minifyEnabled true
-            debuggable false
+            shrinkResources = true
+            minifyEnabled = true
+            debuggable = false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
 
     buildFeatures {
-        viewBinding true
-        buildConfig true
+        viewBinding = true
+        buildConfig = true
     }
 
-    namespace 'com.cappielloantonio.tempo'
+    testOptions {
+        animationsDisabled = true
+        managedDevices {
+            localDevices {
+                pixel2Api29 {
+                    device = "Pixel 2"
+                    apiLevel = 29
+                    systemImageSource = "aosp"
+                }
+                pixel6Api33 {
+                    device = "Pixel 6"
+                    apiLevel = 33
+                    systemImageSource = "aosp"
+                }
+                pixel7Api35 {
+                    device = "Pixel 7"
+                    apiLevel = 35
+                    systemImageSource = "aosp"
+                }
+                pixelTabletApi34 {
+                    device = "Pixel Tablet"
+                    apiLevel = 34
+                    systemImageSource = "aosp"
+                }
+                automotiveApi34 {
+                    device = "Automotive (1024p landscape)"
+                    apiLevel = 34
+                    systemImageSource = "aosp"
+                }
+            }
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            keepDebugSymbols += ['**/libffmpegJNI.so']
+        }
+    }
+
+    namespace = 'one.chandan.rubato'
+}
+
+configurations {
+    parcelizeCompiler {
+        transitive = false
+    }
 }
 
 dependencies {
-    implementation files('../libs/lib-decoder-ffmpeg-release.aar')
+    def includeFfmpeg = !project.hasProperty('excludeFfmpeg')
+    if (includeFfmpeg) {
+        implementation files('../libs/lib-decoder-ffmpeg-release.aar')
+    }
+    compileOnly 'com.google.j2objc:j2objc-annotations:2.8'
 
     // AndroidX
     implementation 'androidx.constraintlayout:constraintlayout:2.2.0'
@@ -80,9 +105,10 @@ dependencies {
     implementation 'androidx.navigation:navigation-fragment-ktx:2.8.6'
     implementation 'androidx.navigation:navigation-ui-ktx:2.8.6'
     implementation 'androidx.recyclerview:recyclerview:1.4.0'
-    implementation 'androidx.room:room-runtime:2.6.1'
+    implementation 'androidx.room:room-runtime:2.8.4'
     implementation 'androidx.core:core-splashscreen:1.0.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.documentfile:documentfile:1.0.1'
 
     // Android Material
     implementation 'com.google.android.material:material:1.10.0'
@@ -97,14 +123,33 @@ dependencies {
     implementation 'androidx.media3:media3-exoplayer:1.5.1'
     implementation 'androidx.media3:media3-ui:1.5.1'
     implementation 'androidx.media3:media3-exoplayer-hls:1.5.1'
-    tempoImplementation 'androidx.media3:media3-cast:1.5.1'
-    playImplementation 'androidx.media3:media3-cast:1.5.1'
+    implementation 'androidx.media3:media3-cast:1.5.1'
 
     annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
-    annotationProcessor 'androidx.room:room-compiler:2.6.1'
+    annotationProcessor 'androidx.room:room-compiler:2.8.4'
+    implementation 'org.jetbrains.kotlin:kotlin-parcelize-runtime:2.2.10'
+    parcelizeCompiler 'org.jetbrains.kotlin:kotlin-parcelize-compiler:2.2.10'
 
     // Retrofit
     implementation 'com.squareup.retrofit2:retrofit:2.11.0'
     implementation 'com.squareup.okhttp3:logging-interceptor:5.0.0-alpha.14'
     implementation 'com.squareup.retrofit2:converter-gson:2.11.0'
+
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test:core:1.5.0'
+    androidTestImplementation 'androidx.test:runner:1.5.2'
+    androidTestImplementation 'androidx.test:rules:1.5.0'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    debugImplementation 'androidx.fragment:fragment-testing:1.8.6'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xlint:-options']
+}
+
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions.freeCompilerArgs += [
+            "-Xplugin=${configurations.parcelizeCompiler.singleFile}"
+    ]
 }

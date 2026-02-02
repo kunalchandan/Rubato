@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <com.cappielloantonio.tempo.helper.recyclerview.NestedScrollableHost
+    <one.chandan.rubato.helper.recyclerview.NestedScrollableHost
         android:id="@+id/player_queue_nested_scrollable_recycler_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
@@ -33,11 +33,11 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:layout_marginTop="24dp"
-                    android:text="@string/player_queue_clean_all_button"/>
+                    android:text="@string/player_queue_end_label"/>
 
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
-    </com.cappielloantonio.tempo.helper.recyclerview.NestedScrollableHost>
+    </one.chandan.rubato.helper.recyclerview.NestedScrollableHost>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/player_shuffle_queue_fab"

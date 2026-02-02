@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="AppTheme.SplashScreen" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#000000</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ui_splash_screen</item>
+        <item name="windowSplashScreenBackground">@drawable/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@null</item>
+        <item name="windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
         <item name="postSplashScreenTheme">@style/AppTheme</item>
         <item name="windowSplashScreenAnimationDuration">100</item>
     </style>
@@ -38,6 +39,270 @@
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:statusBarColor">?attr/colorSurface</item>
         <item name="android:navigationBarColor">?attr/colorSurface</item>
+        <item name="android:scrollbars">none</item>
+    </style>
+
+    <style name="AppTheme.Ocean" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_ocean_primary</item>
+        <item name="colorOnPrimary">@color/theme_ocean_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_ocean_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_ocean_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_ocean_secondary</item>
+        <item name="colorOnSecondary">@color/theme_ocean_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_ocean_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_ocean_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_ocean_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_ocean_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_ocean_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_ocean_onTertiaryContainer</item>
+    </style>
+
+    <style name="AppTheme.Forest" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_forest_primary</item>
+        <item name="colorOnPrimary">@color/theme_forest_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_forest_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_forest_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_forest_secondary</item>
+        <item name="colorOnSecondary">@color/theme_forest_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_forest_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_forest_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_forest_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_forest_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_forest_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_forest_onTertiaryContainer</item>
+    </style>
+
+    <style name="AppTheme.Sunset" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_sunset_primary</item>
+        <item name="colorOnPrimary">@color/theme_sunset_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_sunset_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_sunset_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_sunset_secondary</item>
+        <item name="colorOnSecondary">@color/theme_sunset_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_sunset_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_sunset_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_sunset_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_sunset_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_sunset_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_sunset_onTertiaryContainer</item>
+    </style>
+
+    <style name="AppTheme.Rose" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_rose_primary</item>
+        <item name="colorOnPrimary">@color/theme_rose_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_rose_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_rose_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_rose_secondary</item>
+        <item name="colorOnSecondary">@color/theme_rose_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_rose_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_rose_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_rose_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_rose_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_rose_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_rose_onTertiaryContainer</item>
+    </style>
+
+    <style name="AppTheme.Slate" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_slate_primary</item>
+        <item name="colorOnPrimary">@color/theme_slate_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_slate_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_slate_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_slate_secondary</item>
+        <item name="colorOnSecondary">@color/theme_slate_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_slate_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_slate_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_slate_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_slate_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_slate_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_slate_onTertiaryContainer</item>
+    </style>
+
+    <style name="AppTheme.Citrus" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_citrus_primary</item>
+        <item name="colorOnPrimary">@color/theme_citrus_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_citrus_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_citrus_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_citrus_secondary</item>
+        <item name="colorOnSecondary">@color/theme_citrus_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_citrus_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_citrus_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_citrus_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_citrus_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_citrus_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_citrus_onTertiaryContainer</item>
+    </style>
+
+    <style name="AppTheme.Sage" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_sage_primary</item>
+        <item name="colorOnPrimary">@color/theme_sage_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_sage_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_sage_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_sage_secondary</item>
+        <item name="colorOnSecondary">@color/theme_sage_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_sage_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_sage_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_sage_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_sage_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_sage_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_sage_onTertiaryContainer</item>
+    </style>
+
+    <style name="AppTheme.Lagoon" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_lagoon_primary</item>
+        <item name="colorOnPrimary">@color/theme_lagoon_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_lagoon_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_lagoon_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_lagoon_secondary</item>
+        <item name="colorOnSecondary">@color/theme_lagoon_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_lagoon_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_lagoon_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_lagoon_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_lagoon_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_lagoon_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_lagoon_onTertiaryContainer</item>
+    </style>
+
+    <style name="AppTheme.Dune" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_dune_primary</item>
+        <item name="colorOnPrimary">@color/theme_dune_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_dune_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_dune_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_dune_secondary</item>
+        <item name="colorOnSecondary">@color/theme_dune_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_dune_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_dune_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_dune_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_dune_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_dune_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_dune_onTertiaryContainer</item>
+    </style>
+
+    <style name="AppTheme.Midnight" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/theme_midnight_primary</item>
+        <item name="colorOnPrimary">@color/theme_midnight_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_midnight_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_midnight_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_midnight_secondary</item>
+        <item name="colorOnSecondary">@color/theme_midnight_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_midnight_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_midnight_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_midnight_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_midnight_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_midnight_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_midnight_onTertiaryContainer</item>
+        <item name="android:colorBackground">@color/md_theme_dark_background</item>
+        <item name="colorOnBackground">@color/md_theme_dark_onBackground</item>
+        <item name="colorSurface">@color/md_theme_dark_surface</item>
+        <item name="colorOnSurface">@color/md_theme_dark_onSurface</item>
+        <item name="colorSurfaceVariant">@color/md_theme_dark_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/md_theme_dark_onSurfaceVariant</item>
+        <item name="colorOutline">@color/md_theme_dark_outline</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/md_theme_dark_surface</item>
+        <item name="android:navigationBarColor">@color/md_theme_dark_surface</item>
+        <item name="android:scrollbars">none</item>
+    </style>
+
+    <style name="AppTheme.Ember" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/theme_ember_primary</item>
+        <item name="colorOnPrimary">@color/theme_ember_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_ember_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_ember_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_ember_secondary</item>
+        <item name="colorOnSecondary">@color/theme_ember_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_ember_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_ember_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_ember_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_ember_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_ember_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_ember_onTertiaryContainer</item>
+        <item name="android:colorBackground">@color/md_theme_dark_background</item>
+        <item name="colorOnBackground">@color/md_theme_dark_onBackground</item>
+        <item name="colorSurface">@color/md_theme_dark_surface</item>
+        <item name="colorOnSurface">@color/md_theme_dark_onSurface</item>
+        <item name="colorSurfaceVariant">@color/md_theme_dark_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/md_theme_dark_onSurfaceVariant</item>
+        <item name="colorOutline">@color/md_theme_dark_outline</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/md_theme_dark_surface</item>
+        <item name="android:navigationBarColor">@color/md_theme_dark_surface</item>
+        <item name="android:scrollbars">none</item>
+    </style>
+
+    <style name="AppTheme.Obsidian" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/theme_obsidian_primary</item>
+        <item name="colorOnPrimary">@color/theme_obsidian_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_obsidian_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_obsidian_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_obsidian_secondary</item>
+        <item name="colorOnSecondary">@color/theme_obsidian_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_obsidian_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_obsidian_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_obsidian_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_obsidian_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_obsidian_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_obsidian_onTertiaryContainer</item>
+        <item name="android:colorBackground">@color/md_theme_dark_background</item>
+        <item name="colorOnBackground">@color/md_theme_dark_onBackground</item>
+        <item name="colorSurface">@color/md_theme_dark_surface</item>
+        <item name="colorOnSurface">@color/md_theme_dark_onSurface</item>
+        <item name="colorSurfaceVariant">@color/md_theme_dark_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/md_theme_dark_onSurfaceVariant</item>
+        <item name="colorOutline">@color/md_theme_dark_outline</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/md_theme_dark_surface</item>
+        <item name="android:navigationBarColor">@color/md_theme_dark_surface</item>
+        <item name="android:scrollbars">none</item>
+    </style>
+
+    <style name="AppTheme.Aurora" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/theme_aurora_primary</item>
+        <item name="colorOnPrimary">@color/theme_aurora_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_aurora_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_aurora_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_aurora_secondary</item>
+        <item name="colorOnSecondary">@color/theme_aurora_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_aurora_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_aurora_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_aurora_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_aurora_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_aurora_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_aurora_onTertiaryContainer</item>
+        <item name="android:colorBackground">@color/md_theme_dark_background</item>
+        <item name="colorOnBackground">@color/md_theme_dark_onBackground</item>
+        <item name="colorSurface">@color/md_theme_dark_surface</item>
+        <item name="colorOnSurface">@color/md_theme_dark_onSurface</item>
+        <item name="colorSurfaceVariant">@color/md_theme_dark_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/md_theme_dark_onSurfaceVariant</item>
+        <item name="colorOutline">@color/md_theme_dark_outline</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/md_theme_dark_surface</item>
+        <item name="android:navigationBarColor">@color/md_theme_dark_surface</item>
+        <item name="android:scrollbars">none</item>
+    </style>
+
+    <style name="AppTheme.Amoled" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/md_theme_dark_primary</item>
+        <item name="colorOnPrimary">@color/md_theme_dark_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/md_theme_dark_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/md_theme_dark_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/md_theme_dark_secondary</item>
+        <item name="colorOnSecondary">@color/md_theme_dark_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/md_theme_dark_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/md_theme_dark_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/md_theme_dark_tertiary</item>
+        <item name="colorOnTertiary">@color/md_theme_dark_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/md_theme_dark_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/md_theme_dark_onTertiaryContainer</item>
+        <item name="android:colorBackground">@color/theme_amoled_background</item>
+        <item name="colorSurface">@color/theme_amoled_surface</item>
+        <item name="colorSurfaceVariant">@color/theme_amoled_surfaceVariant</item>
+        <item name="colorOnSurface">@color/theme_amoled_onSurface</item>
+        <item name="colorOnSurfaceVariant">@color/theme_amoled_onSurfaceVariant</item>
+        <item name="colorOutline">@color/theme_amoled_outline</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/theme_amoled_surface</item>
+        <item name="android:navigationBarColor">@color/theme_amoled_surface</item>
         <item name="android:scrollbars">none</item>
     </style>
 

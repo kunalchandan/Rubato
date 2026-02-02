@@ -9,5 +9,84 @@
 
     <color name="searchPlaceholderColor">#CFCFCF</color>
     <color name="searchColor">#DADADA</color>
+
+    <color name="theme_ocean_primary">#AAC7FF</color>
+    <color name="theme_ocean_onPrimary">#002F63</color>
+    <color name="theme_ocean_primaryContainer">#00458F</color>
+    <color name="theme_ocean_onPrimaryContainer">#D7E3FF</color>
+    <color name="theme_ocean_secondary">#B9C7E0</color>
+    <color name="theme_ocean_onSecondary">#22304C</color>
+    <color name="theme_ocean_secondaryContainer">#394764</color>
+    <color name="theme_ocean_onSecondaryContainer">#D9E3F8</color>
+    <color name="theme_ocean_tertiary">#82D5C8</color>
+    <color name="theme_ocean_onTertiary">#003730</color>
+    <color name="theme_ocean_tertiaryContainer">#005046</color>
+    <color name="theme_ocean_onTertiaryContainer">#9FF2E3</color>
+
+    <color name="theme_forest_primary">#9BD89E</color>
+    <color name="theme_forest_onPrimary">#0D3E1C</color>
+    <color name="theme_forest_primaryContainer">#24512A</color>
+    <color name="theme_forest_onPrimaryContainer">#B8F5B9</color>
+    <color name="theme_forest_secondary">#B1CCB7</color>
+    <color name="theme_forest_onSecondary">#1D3526</color>
+    <color name="theme_forest_secondaryContainer">#334C3B</color>
+    <color name="theme_forest_onSecondaryContainer">#CDE9D5</color>
+    <color name="theme_forest_tertiary">#CDCB86</color>
+    <color name="theme_forest_onTertiary">#343200</color>
+    <color name="theme_forest_tertiaryContainer">#4B4A12</color>
+    <color name="theme_forest_onTertiaryContainer">#E9E7A1</color>
+
+    <color name="theme_sunset_primary">#FFB5A0</color>
+    <color name="theme_sunset_onPrimary">#5A1A00</color>
+    <color name="theme_sunset_primaryContainer">#7A2E12</color>
+    <color name="theme_sunset_onPrimaryContainer">#FFDAD1</color>
+    <color name="theme_sunset_secondary">#E3BDB0</color>
+    <color name="theme_sunset_onSecondary">#422115</color>
+    <color name="theme_sunset_secondaryContainer">#5C3728</color>
+    <color name="theme_sunset_onSecondaryContainer">#FFDCCD</color>
+    <color name="theme_sunset_tertiary">#D9C68B</color>
+    <color name="theme_sunset_onTertiary">#3A3000</color>
+    <color name="theme_sunset_tertiaryContainer">#524600</color>
+    <color name="theme_sunset_onTertiaryContainer">#F7E2A4</color>
+
+    <color name="theme_rose_primary">#FFB1C8</color>
+    <color name="theme_rose_onPrimary">#64002C</color>
+    <color name="theme_rose_primaryContainer">#8B1742</color>
+    <color name="theme_rose_onPrimaryContainer">#FFD9E1</color>
+    <color name="theme_rose_secondary">#DDBFC6</color>
+    <color name="theme_rose_onSecondary">#3A2A2F</color>
+    <color name="theme_rose_secondaryContainer">#524147</color>
+    <color name="theme_rose_onSecondaryContainer">#FAD9E1</color>
+    <color name="theme_rose_tertiary">#F4B6C4</color>
+    <color name="theme_rose_onTertiary">#4C1F2B</color>
+    <color name="theme_rose_tertiaryContainer">#653641</color>
+    <color name="theme_rose_onTertiaryContainer">#FFD9E2</color>
+
+    <color name="theme_slate_primary">#B4C8E6</color>
+    <color name="theme_slate_onPrimary">#0C2D45</color>
+    <color name="theme_slate_primaryContainer">#26435C</color>
+    <color name="theme_slate_onPrimaryContainer">#D4E3F3</color>
+    <color name="theme_slate_secondary">#BCC7D1</color>
+    <color name="theme_slate_onSecondary">#26323B</color>
+    <color name="theme_slate_secondaryContainer">#3C4852</color>
+    <color name="theme_slate_onSecondaryContainer">#D8E3EA</color>
+    <color name="theme_slate_tertiary">#D8BFC6</color>
+    <color name="theme_slate_onTertiary">#3B242E</color>
+    <color name="theme_slate_tertiaryContainer">#523A44</color>
+    <color name="theme_slate_onTertiaryContainer">#F2DADF</color>
+
+    <color name="theme_amoled_background">#000000</color>
+    <color name="theme_amoled_surface">#000000</color>
+    <color name="theme_amoled_surfaceVariant">#121212</color>
+    <color name="theme_amoled_onSurface">#E6E1E5</color>
+    <color name="theme_amoled_onSurfaceVariant">#C7C7C7</color>
+    <color name="theme_amoled_outline">#2A2A2A</color>
+    <color name="queue_swipe_green">#1DB954</color>
+
+    <color name="widget_background">#1C1B1F</color>
+    <color name="widget_text_primary">#E6E1E5</color>
+    <color name="widget_text_secondary">#CAC4D0</color>
+    <color name="widget_icon">#D0BCFF</color>
+    <color name="widget_control_bg">#49454F</color>
 </resources>
 

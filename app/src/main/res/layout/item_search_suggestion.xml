@@ -12,27 +12,44 @@
     android:paddingRight="16dp"
     android:paddingBottom="16dp">
 
-    <ImageView
+    <com.google.android.material.imageview.ShapeableImageView
         android:id="@+id/search_suggestion_icon"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:scaleType="centerCrop"
         android:src="@drawable/ic_history"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:ignore="ContentDescription" />
 
-    <TextView
-        android:id="@+id/search_suggestion_title"
+    <LinearLayout
+        android:id="@+id/search_suggestion_text_container"
         android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_marginHorizontal="12dp"
-        android:text="@string/label_placeholder"
-        android:textAppearance="?attr/textAppearanceBody2"
-        app:layout_constraintBottom_toBottomOf="@id/search_suggestion_icon"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:orientation="vertical"
         app:layout_constraintEnd_toStartOf="@id/search_suggestion_delete_icon"
         app:layout_constraintStart_toEndOf="@id/search_suggestion_icon"
-        app:layout_constraintTop_toTopOf="@id/search_suggestion_icon" />
+        app:layout_constraintTop_toTopOf="@id/search_suggestion_icon"
+        app:layout_constraintBottom_toBottomOf="@id/search_suggestion_icon">
+
+        <TextView
+            android:id="@+id/search_suggestion_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/label_placeholder"
+            android:textAppearance="?attr/textAppearanceBody2" />
+
+        <TextView
+            android:id="@+id/search_suggestion_subtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="@string/search_suggestion_subtitle_artist"
+            android:textAppearance="@style/LabelSmall" />
+    </LinearLayout>
 
     <ImageView
         android:id="@+id/search_suggestion_delete_icon"
@@ -42,7 +59,7 @@
         android:src="@drawable/ic_close"
         app:layout_constraintBottom_toBottomOf="@id/search_suggestion_icon"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@id/search_suggestion_title"
+        app:layout_constraintStart_toEndOf="@id/search_suggestion_text_container"
         app:layout_constraintTop_toTopOf="@id/search_suggestion_icon"
         tools:ignore="ContentDescription" />
 </androidx.constraintlayout.widget.ConstraintLayout>

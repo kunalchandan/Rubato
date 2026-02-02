@@ -1,13 +1,45 @@
 <resources>
     <string-array name="theme_list_titles">
-        <item>Light</item>
-        <item>Dark</item>
-        <item>System default</item>
+        <item>@string/theme_option_system</item>
+        <item>@string/theme_option_light</item>
+        <item>@string/theme_option_dark</item>
+        <item>@string/theme_option_amoled</item>
+        <item>@string/theme_option_material_you</item>
+        <item>@string/theme_option_ocean</item>
+        <item>@string/theme_option_forest</item>
+        <item>@string/theme_option_sunset</item>
+        <item>@string/theme_option_rose</item>
+        <item>@string/theme_option_slate</item>
+        <item>@string/theme_option_citrus</item>
+        <item>@string/theme_option_sage</item>
+        <item>@string/theme_option_lagoon</item>
+        <item>@string/theme_option_dune</item>
+        <item>@string/theme_option_midnight</item>
+        <item>@string/theme_option_ember</item>
+        <item>@string/theme_option_obsidian</item>
+        <item>@string/theme_option_aurora</item>
+        <item>@string/theme_option_custom</item>
     </string-array>
     <string-array name="theme_list_values">
+        <item>default</item>
         <item>light</item>
         <item>dark</item>
-        <item>default</item>
+        <item>amoled</item>
+        <item>material_you</item>
+        <item>ocean</item>
+        <item>forest</item>
+        <item>sunset</item>
+        <item>rose</item>
+        <item>slate</item>
+        <item>citrus</item>
+        <item>sage</item>
+        <item>lagoon</item>
+        <item>dune</item>
+        <item>midnight</item>
+        <item>ember</item>
+        <item>obsidian</item>
+        <item>aurora</item>
+        <item>custom</item>
     </string-array>
 
     <string-array name="pref_cache_size_titles">
@@ -184,6 +216,27 @@
         <item>Five seconds</item>
         <item>Two seconds</item>
     </string-array>
+
+    <string-array name="queue_swipe_action_titles">
+        <item>@string/queue_swipe_action_play_next</item>
+        <item>@string/queue_swipe_action_add_queue</item>
+        <item>@string/queue_swipe_action_like</item>
+        <item>@string/queue_swipe_action_none</item>
+    </string-array>
+    <string-array name="queue_swipe_action_values">
+        <item>play_next</item>
+        <item>add_to_queue</item>
+        <item>like</item>
+        <item>none</item>
+    </string-array>
+    <string-array name="download_export_mode_titles">
+        <item>@string/download_export_mode_app</item>
+        <item>@string/download_export_mode_shared</item>
+    </string-array>
+    <string-array name="download_export_mode_values">
+        <item>app_private</item>
+        <item>shared_music</item>
+    </string-array>
     <string-array name="queue_syncing_countdown_values">
         <item>10</item>
         <item>5</item>
@@ -196,9 +249,9 @@
         <item>Low</item>
     </string-array>
     <string-array name="rounded_corner_size_values">
-        <item>18</item>
+        <item>36</item>
+        <item>24</item>
         <item>12</item>
-        <item>6</item>
     </string-array>
 
     <string-array name="replay_gain_titles">

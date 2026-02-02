@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            style="@style/TitleLarge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/visualizer_settings_title" />
+
+        <one.chandan.rubato.ui.view.VisualizerView
+            android:id="@+id/visualizer_preview"
+            android:layout_width="match_parent"
+            android:layout_height="120dp"
+            android:layout_marginTop="16dp"
+            android:importantForAccessibility="no" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/visualizer_enable_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/visualizer_enable_label" />
+
+        <TextView
+            style="@style/TitleMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/visualizer_style_title" />
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/visualizer_style_group"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:singleSelection="true">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/visualizer_style_bars_chip"
+                style="@style/Widget.Material3.Chip.Suggestion"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/visualizer_style_bars"
+                android:checkable="true" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/visualizer_style_line_chip"
+                style="@style/Widget.Material3.Chip.Suggestion"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/visualizer_style_line"
+                android:checkable="true" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/visualizer_style_dots_chip"
+                style="@style/Widget.Material3.Chip.Suggestion"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/visualizer_style_dots"
+                android:checkable="true" />
+        </com.google.android.material.chip.ChipGroup>
+
+        <TextView
+            android:id="@+id/visualizer_bar_count_label"
+            style="@style/TitleMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/visualizer_bar_count_label_placeholder" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/visualizer_bar_count_slider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="24"
+            android:valueTo="96" />
+
+        <TextView
+            android:id="@+id/visualizer_opacity_label"
+            style="@style/TitleMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/visualizer_opacity_label_placeholder" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/visualizer_opacity_slider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0.2"
+            android:valueTo="0.8" />
+
+        <TextView
+            android:id="@+id/visualizer_smoothing_label"
+            style="@style/TitleMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/visualizer_smoothing_label_placeholder" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/visualizer_smoothing_slider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0.1"
+            android:valueTo="0.9" />
+
+        <TextView
+            android:id="@+id/visualizer_scale_label"
+            style="@style/TitleMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/visualizer_scale_label_placeholder" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/visualizer_scale_slider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="0.8"
+            android:valueTo="1.6" />
+
+        <TextView
+            android:id="@+id/visualizer_fps_label"
+            style="@style/TitleMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/visualizer_fps_label_placeholder" />
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/visualizer_fps_slider"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:valueFrom="30"
+            android:valueTo="60" />
+
+        <TextView
+            style="@style/TitleMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/visualizer_color_mode_title" />
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/visualizer_color_mode_group"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            app:singleSelection="true">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/visualizer_color_accent_chip"
+                style="@style/Widget.Material3.Chip.Suggestion"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/visualizer_color_accent"
+                android:checkable="true" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/visualizer_color_gradient_chip"
+                style="@style/Widget.Material3.Chip.Suggestion"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/visualizer_color_gradient"
+                android:checkable="true" />
+        </com.google.android.material.chip.ChipGroup>
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/visualizer_peak_caps_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/visualizer_peak_caps_label" />
+
+        <Button
+            android:id="@+id/visualizer_settings_done"
+            style="@style/Widget.Material3.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/action_done" />
+
+    </LinearLayout>
+</ScrollView>

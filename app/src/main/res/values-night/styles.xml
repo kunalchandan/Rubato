@@ -34,6 +34,111 @@
         <item name="android:scrollbars">none</item>
     </style>
 
+    <style name="AppTheme.Ocean" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_ocean_primary</item>
+        <item name="colorOnPrimary">@color/theme_ocean_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_ocean_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_ocean_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_ocean_secondary</item>
+        <item name="colorOnSecondary">@color/theme_ocean_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_ocean_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_ocean_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_ocean_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_ocean_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_ocean_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_ocean_onTertiaryContainer</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="AppTheme.Forest" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_forest_primary</item>
+        <item name="colorOnPrimary">@color/theme_forest_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_forest_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_forest_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_forest_secondary</item>
+        <item name="colorOnSecondary">@color/theme_forest_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_forest_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_forest_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_forest_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_forest_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_forest_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_forest_onTertiaryContainer</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="AppTheme.Sunset" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_sunset_primary</item>
+        <item name="colorOnPrimary">@color/theme_sunset_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_sunset_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_sunset_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_sunset_secondary</item>
+        <item name="colorOnSecondary">@color/theme_sunset_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_sunset_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_sunset_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_sunset_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_sunset_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_sunset_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_sunset_onTertiaryContainer</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="AppTheme.Rose" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_rose_primary</item>
+        <item name="colorOnPrimary">@color/theme_rose_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_rose_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_rose_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_rose_secondary</item>
+        <item name="colorOnSecondary">@color/theme_rose_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_rose_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_rose_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_rose_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_rose_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_rose_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_rose_onTertiaryContainer</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="AppTheme.Slate" parent="AppTheme">
+        <item name="colorPrimary">@color/theme_slate_primary</item>
+        <item name="colorOnPrimary">@color/theme_slate_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/theme_slate_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/theme_slate_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/theme_slate_secondary</item>
+        <item name="colorOnSecondary">@color/theme_slate_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/theme_slate_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/theme_slate_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/theme_slate_tertiary</item>
+        <item name="colorOnTertiary">@color/theme_slate_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/theme_slate_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/theme_slate_onTertiaryContainer</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="AppTheme.Amoled" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/md_theme_dark_primary</item>
+        <item name="colorOnPrimary">@color/md_theme_dark_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/md_theme_dark_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/md_theme_dark_onPrimaryContainer</item>
+        <item name="colorSecondary">@color/md_theme_dark_secondary</item>
+        <item name="colorOnSecondary">@color/md_theme_dark_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/md_theme_dark_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/md_theme_dark_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/md_theme_dark_tertiary</item>
+        <item name="colorOnTertiary">@color/md_theme_dark_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/md_theme_dark_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/md_theme_dark_onTertiaryContainer</item>
+        <item name="android:colorBackground">@color/theme_amoled_background</item>
+        <item name="colorSurface">@color/theme_amoled_surface</item>
+        <item name="colorSurfaceVariant">@color/theme_amoled_surfaceVariant</item>
+        <item name="colorOnSurface">@color/theme_amoled_onSurface</item>
+        <item name="colorOnSurfaceVariant">@color/theme_amoled_onSurfaceVariant</item>
+        <item name="colorOutline">@color/theme_amoled_outline</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@color/theme_amoled_surface</item>
+        <item name="android:navigationBarColor">@color/theme_amoled_surface</item>
+        <item name="android:scrollbars">none</item>
+    </style>
+
     <style name="Divider">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">0.5dp</item>

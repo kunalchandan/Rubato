@@ -529,14 +529,38 @@
             tools:visibility="visible">
 
             <!--  Label and button  -->
-            <TextView
-                style="@style/TitleLarge"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingStart="16dp"
+                android:orientation="horizontal"
+                android:paddingStart="8dp"
                 android:paddingTop="16dp"
-                android:paddingEnd="16dp"
-                android:text="@string/home_title_flashback" />
+                android:paddingEnd="8dp"
+                android:paddingBottom="8dp">
+
+                <TextView
+                    style="@style/TitleLarge"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:text="@string/home_title_flashback" />
+
+                <FrameLayout
+                    android:id="@+id/flashback_settings_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:padding="12dp">
+
+                    <ImageView
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:background="@drawable/ic_more_vert"
+                        android:contentDescription="@string/home_flashback_settings"
+                        android:foreground="?android:attr/selectableItemBackgroundBorderless" />
+                </FrameLayout>
+            </LinearLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/years_recycler_view"

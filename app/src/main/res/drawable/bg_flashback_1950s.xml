@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <corners android:radius="@dimen/flashback_corner_radius" />
+    <gradient
+        android:angle="135"
+        android:endColor="#FDEBD0"
+        android:startColor="#FADBD8" />
+</shape>

@@ -11,8 +11,9 @@
             android:title="@string/settings_scan_title" />
 
         <Preference
-            android:key="logout"
-            android:title="@string/settings_logout_title"/>
+            android:key="music_sources"
+            android:title="@string/settings_music_sources_title"
+            android:summary="@string/settings_music_sources_summary"/>
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/settings_title_ui">
@@ -22,14 +23,15 @@
             app:key="language"
             app:title="@string/settings_language"/>
 
-        <ListPreference
-            app:defaultValue="default"
-            app:dialogTitle="@string/settings_theme"
-            app:entries="@array/theme_list_titles"
-            app:entryValues="@array/theme_list_values"
+        <Preference
             app:key="theme"
             app:title="@string/settings_theme"
-            app:useSimpleSummaryProvider="true" />
+            app:summary="@string/settings_theme_summary" />
+
+        <Preference
+            android:key="visualizer_settings"
+            android:title="@string/settings_visualizer_title"
+            android:summary="@string/settings_visualizer_summary" />
 
         <SwitchPreference
             android:title="@string/settings_always_on_display"
@@ -49,6 +51,28 @@
             app:entryValues="@array/rounded_corner_size_values"
             app:key="rounded_corner_size"
             app:title="@string/settings_rounded_corner_size"
+            app:useSimpleSummaryProvider="true" />
+
+        <Preference
+            app:selectable="false"
+            app:summary="@string/settings_swipe_queue_summary" />
+
+        <ListPreference
+            app:defaultValue="play_next"
+            app:dialogTitle="@string/settings_swipe_left_title"
+            app:entries="@array/queue_swipe_action_titles"
+            app:entryValues="@array/queue_swipe_action_values"
+            app:key="queue_swipe_left_action"
+            app:title="@string/settings_swipe_left_title"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            app:defaultValue="add_to_queue"
+            app:dialogTitle="@string/settings_swipe_right_title"
+            app:entries="@array/queue_swipe_action_titles"
+            app:entryValues="@array/queue_swipe_action_values"
+            app:key="queue_swipe_right_action"
+            app:title="@string/settings_swipe_right_title"
             app:useSimpleSummaryProvider="true" />
 
         <SwitchPreference
@@ -128,6 +152,12 @@
             android:key="data_saving_mode" />
 
         <SwitchPreference
+            android:title="@string/settings_local_music_title"
+            android:defaultValue="false"
+            android:summary="@string/settings_local_music_summary"
+            android:key="local_music_enabled" />
+
+        <SwitchPreference
             android:title="@string/settings_sync_starred_tracks_for_offline_use_title"
             android:defaultValue="false"
             android:summary="@string/settings_sync_starred_tracks_for_offline_use_summary"
@@ -150,6 +180,22 @@
         <Preference
             android:key="download_storage"
             app:title="@string/settings_download_storage_title" />
+
+        <ListPreference
+            app:defaultValue="app_private"
+            app:dialogTitle="@string/settings_download_export_title"
+            app:entries="@array/download_export_mode_titles"
+            app:entryValues="@array/download_export_mode_values"
+            app:key="download_export_mode"
+            app:title="@string/settings_download_export_title"
+            app:summary="@string/settings_download_export_summary"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            android:key="download_export_folder"
+            android:title="@string/settings_download_export_folder_title"
+            android:summary="@string/settings_download_export_folder_summary"
+            android:defaultValue="Rubato" />
 
         <Preference
             android:key="delete_download_storage"
@@ -327,6 +373,14 @@
             app:key="queue_syncing_countdown"
             app:title="@string/settings_queue_syncing_countdown"
             app:useSimpleSummaryProvider="true" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/settings_title_diagnostics">
+        <SwitchPreference
+            android:title="@string/settings_local_telemetry_title"
+            android:defaultValue="false"
+            android:summary="@string/settings_local_telemetry_summary"
+            android:key="local_telemetry_enabled" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/settings_about_title">

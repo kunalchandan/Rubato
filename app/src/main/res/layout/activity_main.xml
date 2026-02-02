@@ -36,7 +36,16 @@
             android:paddingStart="24dp"
             android:paddingEnd="24dp"
             android:visibility="gone"
+            app:itemIconTint="?attr/colorPrimary"
             app:menu="@menu/bottom_nav_menu" />
+
+        <FrameLayout
+            android:id="@+id/coachmark_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone" />
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 

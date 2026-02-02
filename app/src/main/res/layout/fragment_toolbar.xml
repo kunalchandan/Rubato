@@ -30,7 +30,8 @@
                 android:layout_height="wrap_content"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp"
-                android:text="@string/app_name" />
+                android:text="@string/app_name"
+                android:textColor="?attr/colorPrimary" />
         </LinearLayout>
     </com.google.android.material.appbar.MaterialToolbar>
 </com.google.android.material.appbar.AppBarLayout>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_circle_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="8dp">
+
+    <FrameLayout
+        android:id="@+id/widget_circle_container"
+        android:layout_width="@dimen/widget_circle_size"
+        android:layout_height="@dimen/widget_circle_size"
+        android:layout_gravity="center">
+
+        <ImageView
+            android:id="@+id/widget_circle_cover"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/widget_circle_background"
+            android:clipToOutline="true"
+            android:contentDescription="@string/widget_cover_description"
+            android:outlineProvider="background"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_splash_logo_rubato" />
+
+        <ImageView
+            android:id="@+id/widget_circle_favorite"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="top|start"
+            android:background="@drawable/widget_control_circle"
+            android:contentDescription="@string/widget_action_favorite"
+            android:padding="6dp"
+            android:src="@drawable/widget_ic_favorite" />
+
+        <ImageView
+            android:id="@+id/widget_circle_prev"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="top|end"
+            android:background="@drawable/widget_control_circle"
+            android:contentDescription="@string/widget_action_previous"
+            android:padding="6dp"
+            android:src="@drawable/widget_ic_skip_previous" />
+
+        <ImageView
+            android:id="@+id/widget_circle_play_pause"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="bottom|start"
+            android:background="@drawable/widget_control_circle"
+            android:contentDescription="@string/widget_action_play_pause"
+            android:padding="6dp"
+            android:src="@drawable/widget_ic_play" />
+
+        <ImageView
+            android:id="@+id/widget_circle_next"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="bottom|end"
+            android:background="@drawable/widget_control_circle"
+            android:contentDescription="@string/widget_action_next"
+            android:padding="6dp"
+            android:src="@drawable/widget_ic_skip_next" />
+    </FrameLayout>
+</FrameLayout>

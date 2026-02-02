@@ -30,14 +30,31 @@
         style="@style/LabelMedium"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
         android:ellipsize="marquee"
         android:layout_marginEnd="12dp"
         android:singleLine="true"
         android:text="@string/label_placeholder"
-        app:layout_constraintBottom_toBottomOf="@id/music_folder_cover_image_view"
+        app:layout_constraintBottom_toTopOf="@+id/music_folder_subtitle_text_view"
         app:layout_constraintEnd_toStartOf="@+id/music_folder_more_button"
         app:layout_constraintStart_toEndOf="@+id/cover_image_separator"
         app:layout_constraintTop_toTopOf="@+id/music_folder_cover_image_view" />
+
+    <TextView
+        android:id="@+id/music_folder_subtitle_text_view"
+        style="@style/BodySmall"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="12dp"
+        android:layout_marginTop="2dp"
+        android:ellipsize="end"
+        android:maxLines="2"
+        android:text="@string/metadata_sync_status_placeholder"
+        android:textColor="?android:attr/textColorSecondary"
+        app:layout_constraintBottom_toBottomOf="@id/music_folder_cover_image_view"
+        app:layout_constraintEnd_toStartOf="@+id/music_folder_more_button"
+        app:layout_constraintStart_toEndOf="@+id/cover_image_separator"
+        app:layout_constraintTop_toBottomOf="@+id/music_folder_title_text_view" />
 
     <ImageView
         android:id="@+id/music_folder_more_button"

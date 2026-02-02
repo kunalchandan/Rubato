@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:id="@+id/metadata_sync_dialog_title"
+            style="@style/HeadlineSmall"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/metadata_sync_dialog_title" />
+
+        <TextView
+            android:id="@+id/metadata_sync_dialog_subtitle"
+            style="@style/LabelSmall"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:text="@string/metadata_sync_dialog_subtitle_placeholder" />
+
+        <View
+            style="@style/Divider"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            style="@style/LabelLarge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/metadata_sync_dialog_active_title" />
+
+        <TextView
+            android:id="@+id/metadata_sync_active_status_text_view"
+            style="@style/BodyMedium"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingTop="6dp"
+            android:text="@string/metadata_sync_status_placeholder" />
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/metadata_sync_active_progress"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:layout_marginTop="8dp"
+            app:trackCornerRadius="3dp" />
+
+        <View
+            style="@style/Divider"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            style="@style/LabelLarge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/metadata_sync_log_title" />
+
+        <TextView
+            android:id="@+id/metadata_sync_log_empty"
+            style="@style/BodySmall"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/metadata_sync_log_empty" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/metadata_sync_log_recycler"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:nestedScrollingEnabled="false"
+            android:clipToPadding="false" />
+
+        <View
+            style="@style/Divider"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            style="@style/LabelLarge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/metadata_sync_dialog_downloaded_title" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/BodySmall"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/metadata_sync_dialog_playlists_label" />
+
+            <TextView
+                android:id="@+id/metadata_sync_playlists_value"
+                style="@style/LabelMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/metadata_sync_count_placeholder" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/BodySmall"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/metadata_sync_dialog_artists_label" />
+
+            <TextView
+                android:id="@+id/metadata_sync_artists_value"
+                style="@style/LabelMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/metadata_sync_count_placeholder" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/BodySmall"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/metadata_sync_dialog_genres_label" />
+
+            <TextView
+                android:id="@+id/metadata_sync_genres_value"
+                style="@style/LabelMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/metadata_sync_count_placeholder" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/BodySmall"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/metadata_sync_dialog_albums_label" />
+
+            <TextView
+                android:id="@+id/metadata_sync_albums_value"
+                style="@style/LabelMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/metadata_sync_count_placeholder" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/BodySmall"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/metadata_sync_dialog_songs_label" />
+
+            <TextView
+                android:id="@+id/metadata_sync_songs_value"
+                style="@style/LabelMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/metadata_sync_count_placeholder" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/BodySmall"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/metadata_sync_dialog_cover_art_label" />
+
+            <TextView
+                android:id="@+id/metadata_sync_cover_art_value"
+                style="@style/LabelMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/metadata_sync_count_placeholder" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/BodySmall"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/metadata_sync_dialog_lyrics_label" />
+
+            <TextView
+                android:id="@+id/metadata_sync_lyrics_value"
+                style="@style/LabelMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/metadata_sync_count_placeholder" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <TextView
+                style="@style/BodySmall"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/metadata_sync_storage_label" />
+
+            <TextView
+                android:id="@+id/metadata_sync_storage_value"
+                style="@style/LabelMedium"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/metadata_sync_storage_placeholder" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/metadata_sync_last_synced_text_view"
+            style="@style/LabelSmall"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/metadata_sync_last_synced_placeholder" />
+    </LinearLayout>
+</ScrollView>
