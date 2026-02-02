@@ -1,0 +1,150 @@
+package one.chandan.rubato.ui.dialog;
+
+import android.app.Dialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.os.Bundle;
+import android.text.TextUtils;
+import android.view.View;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.fragment.app.DialogFragment;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
+
+import one.chandan.rubato.R;
+import one.chandan.rubato.databinding.DialogPlaylistEditorBinding;
+import one.chandan.rubato.interfaces.PlaylistCallback;
+import one.chandan.rubato.ui.adapter.PlaylistDialogSongHorizontalAdapter;
+import one.chandan.rubato.util.Constants;
+import one.chandan.rubato.util.Preferences;
+import one.chandan.rubato.viewmodel.PlaylistEditorViewModel;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
+import java.util.Objects;
+
+public class PlaylistEditorDialog extends DialogFragment {
+    private DialogPlaylistEditorBinding bind;
+    private PlaylistEditorViewModel playlistEditorViewModel;
+
+    private final PlaylistCallback playlistCallback;
+
+    private String playlistName;
+    private PlaylistDialogSongHorizontalAdapter playlistDialogSongHorizontalAdapter;
+
+    public PlaylistEditorDialog(PlaylistCallback playlistCallback) {
+        this.playlistCallback = playlistCallback;
+    }
+
+    @NonNull
+    @Override
+    public Dialog onCreateDialog(Bundle savedInstanceState) {
+        bind = DialogPlaylistEditorBinding.inflate(getLayoutInflater());
+
+        playlistEditorViewModel = new ViewModelProvider(requireActivity()).get(PlaylistEditorViewModel.class);
+
+        return new MaterialAlertDialogBuilder(getActivity())
+                .setView(bind.getRoot())
+                .setTitle(R.string.playlist_editor_dialog_title)
+                .setPositiveButton(R.string.playlist_editor_dialog_positive_button, (dialog, id) -> { })
+                .setNeutralButton(R.string.playlist_editor_dialog_neutral_button, (dialog, id) -> dialog.cancel())
+                .setNegativeButton(R.string.playlist_editor_dialog_negative_button, (dialog, id) -> dialog.cancel())
+                .create();
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+
+        setParameterInfo();
+        setButtonAction();
+        initSongsView();
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        bind = null;
+    }
+
+    private void setParameterInfo() {
+        if (requireArguments().getParcelable(Constants.TRACK_OBJECT) != null) {
+            playlistEditorViewModel.setSongToAdd(requireArguments().getParcelable(Constants.TRACK_OBJECT));
+            playlistEditorViewModel.setPlaylistToEdit(null);
+        } else if (requireArguments().getParcelable(Constants.PLAYLIST_OBJECT) != null) {
+            playlistEditorViewModel.setSongToAdd(null);
+            playlistEditorViewModel.setPlaylistToEdit(requireArguments().getParcelable(Constants.PLAYLIST_OBJECT));
+
+            if (playlistEditorViewModel.getPlaylistToEdit() != null) {
+                bind.playlistNameTextView.setText(playlistEditorViewModel.getPlaylistToEdit().getName());
+            }
+        }
+    }
+
+    private void setButtonAction() {
+        androidx.appcompat.app.AlertDialog alertDialog = (androidx.appcompat.app.AlertDialog) Objects.requireNonNull(getDialog());
+
+        alertDialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            if (validateInput()) {
+                if (playlistEditorViewModel.getSongToAdd() != null) {
+                    playlistEditorViewModel.createPlaylist(playlistName);
+                } else if (playlistEditorViewModel.getPlaylistToEdit() != null) {
+                    playlistEditorViewModel.updatePlaylist(playlistName);
+                }
+
+                dialogDismiss();
+            }
+        });
+
+        alertDialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> Toast.makeText(requireContext(), R.string.playlist_editor_dialog_action_delete_toast, Toast.LENGTH_SHORT).show());
+
+        alertDialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnLongClickListener(v -> {
+            playlistEditorViewModel.deletePlaylist();
+            dialogDismiss();
+            return false;
+        });
+
+        bind.playlistShareButton.setOnClickListener(view -> {
+            playlistEditorViewModel.sharePlaylist().observe(requireActivity(), sharedPlaylist -> {
+                ClipboardManager clipboardManager = (ClipboardManager) requireActivity().getSystemService(Context.CLIPBOARD_SERVICE);
+                ClipData clipData = ClipData.newPlainText(getString(R.string.app_name), sharedPlaylist.getUrl());
+                clipboardManager.setPrimaryClip(clipData);
+            });
+        });
+
+        bind.playlistShareButton.setVisibility(Preferences.isSharingEnabled() ? View.VISIBLE : View.GONE);
+    }
+
+    private void initSongsView() {
+        bind.playlistSongRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
+        bind.playlistSongRecyclerView.setHasFixedSize(true);
+
+        playlistDialogSongHorizontalAdapter = new PlaylistDialogSongHorizontalAdapter();
+        bind.playlistSongRecyclerView.setAdapter(playlistDialogSongHorizontalAdapter);
+
+        playlistEditorViewModel.getPlaylistSongLiveList().observe(requireActivity(), songs -> {
+            if (songs != null) playlistDialogSongHorizontalAdapter.setItems(songs);
+        });
+
+    }
+
+    private boolean validateInput() {
+        playlistName = Objects.requireNonNull(bind.playlistNameTextView.getText()).toString().trim();
+
+        if (TextUtils.isEmpty(playlistName)) {
+            bind.playlistNameTextView.setError(getString(R.string.error_required));
+            return false;
+        }
+
+        return true;
+    }
+
+    private void dialogDismiss() {
+        Objects.requireNonNull(getDialog()).dismiss();
+        if (playlistCallback != null) {
+            playlistCallback.onDismiss();
+        }
+    }
+}
