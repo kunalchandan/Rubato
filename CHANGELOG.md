@@ -6,6 +6,7 @@ Last updated: 2026-02-03
 - Downloaded page actions now mirror album controls with Play/Shuffle/Filter; Play uses the on-screen order (group-aware).
 - Metadata sync watchdog: detects stalls, logs them, and restarts; progress timestamps now update with sync activity.
 - Subsonic sync hardened: per-album timeouts + failure logging for album track fetches.
+- New Releases now fall back to Subsonic "newest" if the year-based list has no remote items.
 - Visualizer: FFT-based capture + smoothing; settings preview is stable and slider values are clamped to valid steps.
 - Home/Library/Genre/Filter no longer refresh on every sync tick; refresh happens only on sync completion to prevent UI churn.
 - Horizontal adapters now update synchronously when unfiltered to avoid item loss from async filter races.

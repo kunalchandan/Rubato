@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.Observer;
 
 import one.chandan.rubato.R;
 import one.chandan.rubato.interfaces.StarCallback;
@@ -20,13 +21,16 @@ import one.chandan.rubato.repository.FavoriteRepository;
 import one.chandan.rubato.repository.PlaylistRepository;
 import one.chandan.rubato.repository.SharingRepository;
 import one.chandan.rubato.repository.SongRepository;
+import one.chandan.rubato.repository.LocalMusicRepository;
 import one.chandan.rubato.subsonic.models.AlbumID3;
 import one.chandan.rubato.subsonic.models.ArtistID3;
 import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.subsonic.models.Playlist;
 import one.chandan.rubato.subsonic.models.Share;
 import one.chandan.rubato.util.Constants;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.Preferences;
+import one.chandan.rubato.util.ServerConfigUtil;
 import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
 
@@ -71,6 +75,15 @@ public class HomeViewModel extends AndroidViewModel {
 
     private List<HomeSector> sectors;
 
+    private LiveData<List<Child>> starredTracksSource;
+    private LiveData<List<AlbumID3>> starredAlbumsSource;
+    private LiveData<List<ArtistID3>> starredArtistsSource;
+    private LiveData<List<Chronology>> chronologySource;
+    private final Observer<List<Child>> starredTracksObserver = songs -> updateListPreservingNonEmpty(starredTracks, songs);
+    private final Observer<List<AlbumID3>> starredAlbumsObserver = albums -> updateListPreservingNonEmpty(starredAlbums, albums);
+    private final Observer<List<ArtistID3>> starredArtistsObserver = artists -> updateListPreservingNonEmpty(starredArtists, artists);
+    private final Observer<List<Chronology>> chronologyObserver = thisGridTopSong::postValue;
+
     public HomeViewModel(@NonNull Application application) {
         super(application);
 
@@ -87,7 +100,59 @@ public class HomeViewModel extends AndroidViewModel {
         setOfflineFavorite();
     }
 
+    private boolean hasRemoteServer() {
+        return ServerConfigUtil.hasAnyRemoteServer();
+    }
+
+    private void loadLocalSongsSample(int limit, MutableLiveData<List<Child>> target) {
+        LocalMusicRepository.loadLibrary(getApplication(), library -> {
+            List<Child> songs = new ArrayList<>(library.songs);
+            Collections.shuffle(songs);
+            if (limit > 0 && songs.size() > limit) {
+                songs = new ArrayList<>(songs.subList(0, limit));
+            }
+            target.postValue(songs);
+        });
+    }
+
+    private void loadLocalAlbumsSample(int limit, MutableLiveData<List<AlbumID3>> target) {
+        LocalMusicRepository.loadLibrary(getApplication(), library -> {
+            List<AlbumID3> albums = new ArrayList<>(library.albums);
+            if (limit > 0 && albums.size() > limit) {
+                albums = new ArrayList<>(albums.subList(0, limit));
+            }
+            target.postValue(albums);
+        });
+    }
+
+    private void loadLocalArtistsSample(int limit, MutableLiveData<List<ArtistID3>> target) {
+        LocalMusicRepository.loadLibrary(getApplication(), library -> {
+            List<ArtistID3> artists = new ArrayList<>(library.artists);
+            if (limit > 0 && artists.size() > limit) {
+                artists = new ArrayList<>(artists.subList(0, limit));
+            }
+            target.postValue(artists);
+        });
+    }
+
+    private <T> MutableLiveData<List<T>> emptyList(MutableLiveData<List<T>> target) {
+        if (target != null) {
+            List<T> current = target.getValue();
+            if (current != null && !current.isEmpty()) {
+                return target;
+            }
+            target.setValue(Collections.emptyList());
+            return target;
+        }
+        return new MutableLiveData<>(Collections.emptyList());
+    }
+
     public LiveData<List<Child>> getDiscoverSongSample(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalSongsSample(10, dicoverSongSample);
+            return dicoverSongSample;
+        }
+
         if (dicoverSongSample.getValue() == null) {
             songRepository.getRandomSample(10, null, null).observe(owner, dicoverSongSample::postValue);
         }
@@ -96,10 +161,31 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<Child>> getRandomShuffleSample() {
+        if (!hasRemoteServer()) {
+            MutableLiveData<List<Child>> local = new MutableLiveData<>(Collections.emptyList());
+            loadLocalSongsSample(100, local);
+            return local;
+        }
         return songRepository.getRandomSample(100, null, null);
     }
 
     public LiveData<List<Chronology>> getChronologySample(LifecycleOwner owner) {
+        if (chronologySource == null) {
+            chronologySource = createChronologySource();
+            chronologySource.observeForever(chronologyObserver);
+        }
+        return thisGridTopSong;
+    }
+
+    public void refreshChronologySample(LifecycleOwner owner) {
+        if (chronologySource != null) {
+            chronologySource.removeObserver(chronologyObserver);
+        }
+        chronologySource = createChronologySource();
+        chronologySource.observeForever(chronologyObserver);
+    }
+
+    private LiveData<List<Chronology>> createChronologySource() {
         Calendar cal = Calendar.getInstance();
         String server = Preferences.getServerId();
 
@@ -109,26 +195,28 @@ public class HomeViewModel extends AndroidViewModel {
         cal.set(Calendar.WEEK_OF_YEAR, currentWeek - 1);
         long end = cal.getTimeInMillis();
 
-        chronologyRepository.getChronology(server, start, end).observe(owner, thisGridTopSong::postValue);
-        return thisGridTopSong;
+        return chronologyRepository.getChronology(server, start, end);
     }
 
     public LiveData<List<AlbumID3>> getRecentlyReleasedAlbums(LifecycleOwner owner) {
-        if (newReleasedAlbum.getValue() == null) {
-            int currentYear = Calendar.getInstance().get(Calendar.YEAR);
+        if (!hasRemoteServer()) {
+            loadLocalAlbumsSample(20, newReleasedAlbum);
+            return newReleasedAlbum;
+        }
 
-            albumRepository.getAlbums("byYear", 500, currentYear, currentYear).observe(owner, albums -> {
-                if (albums != null) {
-                    albums.sort(Comparator.comparing(AlbumID3::getCreated).reversed());
-                    newReleasedAlbum.postValue(albums.subList(0, Math.min(20, albums.size())));
-                }
-            });
+        if (newReleasedAlbum.getValue() == null) {
+            loadRecentlyReleasedWithFallback(owner);
         }
 
         return newReleasedAlbum;
     }
 
     public LiveData<List<Child>> getStarredTracksSample(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalSongsSample(10, starredTracksSample);
+            return starredTracksSample;
+        }
+
         if (starredTracksSample.getValue() == null) {
             songRepository.getStarredSongs(true, 10).observe(owner, starredTracksSample::postValue);
         }
@@ -137,6 +225,11 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<ArtistID3>> getStarredArtistsSample(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalArtistsSample(10, starredArtistsSample);
+            return starredArtistsSample;
+        }
+
         if (starredArtistsSample.getValue() == null) {
             artistRepository.getStarredArtists(true, 10).observe(owner, starredArtistsSample::postValue);
         }
@@ -145,6 +238,11 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<ArtistID3>> getBestOfArtists(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalArtistsSample(20, bestOfArtists);
+            return bestOfArtists;
+        }
+
         if (bestOfArtists.getValue() == null) {
             artistRepository.getStarredArtists(true, 20).observe(owner, bestOfArtists::postValue);
         }
@@ -153,24 +251,39 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<Child>> getStarredTracks(LifecycleOwner owner) {
-        if (starredTracks.getValue() == null) {
-            songRepository.getStarredSongs(true, 20).observe(owner, starredTracks::postValue);
+        if (!hasRemoteServer()) {
+            return emptyList(starredTracks);
+        }
+
+        if (starredTracksSource == null) {
+            starredTracksSource = songRepository.getStarredSongs(true, 20);
+            starredTracksSource.observeForever(starredTracksObserver);
         }
 
         return starredTracks;
     }
 
     public LiveData<List<AlbumID3>> getStarredAlbums(LifecycleOwner owner) {
-        if (starredAlbums.getValue() == null) {
-            albumRepository.getStarredAlbums(true, 20).observe(owner, starredAlbums::postValue);
+        if (!hasRemoteServer()) {
+            return emptyList(starredAlbums);
+        }
+
+        if (starredAlbumsSource == null) {
+            starredAlbumsSource = albumRepository.getStarredAlbums(true, 20);
+            starredAlbumsSource.observeForever(starredAlbumsObserver);
         }
 
         return starredAlbums;
     }
 
     public LiveData<List<ArtistID3>> getStarredArtists(LifecycleOwner owner) {
-        if (starredArtists.getValue() == null) {
-            artistRepository.getStarredArtists(true, 20).observe(owner, starredArtists::postValue);
+        if (!hasRemoteServer()) {
+            return emptyList(starredArtists);
+        }
+
+        if (starredArtistsSource == null) {
+            starredArtistsSource = artistRepository.getStarredArtists(true, 20);
+            starredArtistsSource.observeForever(starredArtistsObserver);
         }
 
         return starredArtists;
@@ -185,6 +298,11 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<AlbumID3>> getMostPlayedAlbums(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalAlbumsSample(20, mostPlayedAlbumSample);
+            return mostPlayedAlbumSample;
+        }
+
         if (mostPlayedAlbumSample.getValue() == null) {
             albumRepository.getAlbums("frequent", 20, null, null).observe(owner, mostPlayedAlbumSample::postValue);
         }
@@ -193,6 +311,11 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<AlbumID3>> getMostRecentlyAddedAlbums(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalAlbumsSample(20, recentlyAddedAlbumSample);
+            return recentlyAddedAlbumSample;
+        }
+
         if (recentlyAddedAlbumSample.getValue() == null) {
             albumRepository.getAlbums("newest", 20, null, null).observe(owner, recentlyAddedAlbumSample::postValue);
         }
@@ -201,6 +324,11 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<AlbumID3>> getRecentlyPlayedAlbumList(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalAlbumsSample(20, recentlyPlayedAlbumSample);
+            return recentlyPlayedAlbumSample;
+        }
+
         if (recentlyPlayedAlbumSample.getValue() == null) {
             albumRepository.getAlbums("recent", 20, null, null).observe(owner, recentlyPlayedAlbumSample::postValue);
         }
@@ -211,6 +339,10 @@ public class HomeViewModel extends AndroidViewModel {
     public LiveData<List<Child>> getMediaInstantMix(LifecycleOwner owner, Child media) {
         mediaInstantMix.setValue(Collections.emptyList());
 
+        if (!hasRemoteServer()) {
+            return mediaInstantMix;
+        }
+
         songRepository.getInstantMix(media.getId(), 20).observe(owner, mediaInstantMix::postValue);
 
         return mediaInstantMix;
@@ -218,6 +350,15 @@ public class HomeViewModel extends AndroidViewModel {
 
     public LiveData<List<Child>> getArtistInstantMix(LifecycleOwner owner, ArtistID3 artist) {
         artistInstantMix.setValue(Collections.emptyList());
+
+        if (!hasRemoteServer()) {
+            if (artist != null) {
+                LocalMusicRepository.getLocalArtistSongsByName(getApplication(), artist.getName(), songs -> {
+                    artistInstantMix.postValue(songs != null ? songs : Collections.emptyList());
+                });
+            }
+            return artistInstantMix;
+        }
 
         artistRepository.getTopSongs(artist.getName(), 10).observe(owner, artistInstantMix::postValue);
 
@@ -227,6 +368,15 @@ public class HomeViewModel extends AndroidViewModel {
     public LiveData<List<Child>> getArtistBestOf(LifecycleOwner owner, ArtistID3 artist) {
         artistBestOf.setValue(Collections.emptyList());
 
+        if (!hasRemoteServer()) {
+            if (artist != null) {
+                LocalMusicRepository.getLocalArtistSongsByName(getApplication(), artist.getName(), songs -> {
+                    artistBestOf.postValue(songs != null ? songs : Collections.emptyList());
+                });
+            }
+            return artistBestOf;
+        }
+
         artistRepository.getTopSongs(artist.getName(), 10).observe(owner, artistBestOf::postValue);
 
         return artistBestOf;
@@ -234,6 +384,13 @@ public class HomeViewModel extends AndroidViewModel {
 
     public LiveData<List<Playlist>> getPinnedPlaylists(LifecycleOwner owner) {
         pinnedPlaylists.setValue(Collections.emptyList());
+
+        if (!hasRemoteServer()) {
+            playlistRepository.getPinnedPlaylists().observe(owner, locals -> {
+                pinnedPlaylists.setValue(locals != null ? locals : Collections.emptyList());
+            });
+            return pinnedPlaylists;
+        }
 
         playlistRepository.getPlaylists(false, -1).observe(owner, remotes -> {
             playlistRepository.getPinnedPlaylists().observe(owner, locals -> {
@@ -259,6 +416,10 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<Share>> getShares(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            return emptyList(shares);
+        }
+
         if (shares.getValue() == null) {
             sharingRepository.getShares().observe(owner, shares::postValue);
         }
@@ -267,6 +428,9 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<Child>> getAllStarredTracks() {
+        if (!hasRemoteServer()) {
+            return new MutableLiveData<>(Collections.emptyList());
+        }
         return songRepository.getStarredSongs(false, -1);
     }
 
@@ -296,47 +460,200 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public void refreshDiscoverySongSample(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalSongsSample(10, dicoverSongSample);
+            return;
+        }
         songRepository.getRandomSample(10, null, null).observe(owner, dicoverSongSample::postValue);
     }
 
     public void refreshSimilarSongSample(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalSongsSample(10, starredTracksSample);
+            return;
+        }
         songRepository.getStarredSongs(true, 10).observe(owner, starredTracksSample::postValue);
     }
 
     public void refreshRadioArtistSample(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalArtistsSample(10, starredArtistsSample);
+            return;
+        }
         artistRepository.getStarredArtists(true, 10).observe(owner, starredArtistsSample::postValue);
     }
 
     public void refreshBestOfArtist(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalArtistsSample(20, bestOfArtists);
+            return;
+        }
         artistRepository.getStarredArtists(true, 20).observe(owner, bestOfArtists::postValue);
     }
 
     public void refreshStarredTracks(LifecycleOwner owner) {
-        songRepository.getStarredSongs(true, 20).observe(owner, starredTracks::postValue);
+        if (!hasRemoteServer()) {
+            updateListPreservingNonEmpty(starredTracks, Collections.emptyList());
+            return;
+        }
+        if (starredTracksSource != null) {
+            starredTracksSource.removeObserver(starredTracksObserver);
+        }
+        starredTracksSource = songRepository.getStarredSongs(true, 20);
+        starredTracksSource.observeForever(starredTracksObserver);
     }
 
     public void refreshStarredAlbums(LifecycleOwner owner) {
-        albumRepository.getStarredAlbums(true, 20).observe(owner, starredAlbums::postValue);
+        if (!hasRemoteServer()) {
+            updateListPreservingNonEmpty(starredAlbums, Collections.emptyList());
+            return;
+        }
+        if (starredAlbumsSource != null) {
+            starredAlbumsSource.removeObserver(starredAlbumsObserver);
+        }
+        starredAlbumsSource = albumRepository.getStarredAlbums(true, 20);
+        starredAlbumsSource.observeForever(starredAlbumsObserver);
     }
 
     public void refreshStarredArtists(LifecycleOwner owner) {
-        artistRepository.getStarredArtists(true, 20).observe(owner, starredArtists::postValue);
+        if (!hasRemoteServer()) {
+            updateListPreservingNonEmpty(starredArtists, Collections.emptyList());
+            return;
+        }
+        if (starredArtistsSource != null) {
+            starredArtistsSource.removeObserver(starredArtistsObserver);
+        }
+        starredArtistsSource = artistRepository.getStarredArtists(true, 20);
+        starredArtistsSource.observeForever(starredArtistsObserver);
+    }
+
+    private <T> void updateListPreservingNonEmpty(MutableLiveData<List<T>> target, List<T> incoming) {
+        if (target == null) return;
+        if (incoming == null) {
+            if (target.getValue() == null) {
+                target.postValue(null);
+            }
+            return;
+        }
+        if (incoming.isEmpty()) {
+            List<T> current = target.getValue();
+            if (current != null && !current.isEmpty()) {
+                return;
+            }
+        }
+        target.postValue(new ArrayList<>(incoming));
     }
 
     public void refreshMostPlayedAlbums(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalAlbumsSample(20, mostPlayedAlbumSample);
+            return;
+        }
         albumRepository.getAlbums("frequent", 20, null, null).observe(owner, mostPlayedAlbumSample::postValue);
     }
 
     public void refreshMostRecentlyAddedAlbums(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalAlbumsSample(20, recentlyAddedAlbumSample);
+            return;
+        }
         albumRepository.getAlbums("newest", 20, null, null).observe(owner, recentlyAddedAlbumSample::postValue);
     }
 
+    public void refreshRecentlyReleasedAlbums(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalAlbumsSample(20, newReleasedAlbum);
+            return;
+        }
+        loadRecentlyReleasedWithFallback(owner);
+    }
+
+    private void loadRecentlyReleasedWithFallback(LifecycleOwner owner) {
+        int currentYear = Calendar.getInstance().get(Calendar.YEAR);
+        albumRepository.getAlbums("byYear", 500, currentYear, currentYear).observe(owner, albums -> {
+            if (albums == null) {
+                return;
+            }
+            if (!hasNonLocalAlbums(albums)) {
+                albumRepository.getAlbums("newest", 200, null, null).observe(owner, fallback -> {
+                    if (fallback == null) return;
+                    updateNewReleasesFromList(fallback);
+                });
+                return;
+            }
+            updateNewReleasesFromList(albums);
+        });
+    }
+
+    private void updateNewReleasesFromList(List<AlbumID3> albums) {
+        if (albums == null) return;
+        List<AlbumID3> sorted = new ArrayList<>(albums);
+        sortByRecentCreated(sorted);
+        List<AlbumID3> selection = new ArrayList<>(sorted.subList(0, Math.min(20, sorted.size())));
+        updateListPreservingNonEmpty(newReleasedAlbum, selection);
+    }
+
+    private boolean hasNonLocalAlbums(List<AlbumID3> albums) {
+        if (albums == null || albums.isEmpty()) return false;
+        for (AlbumID3 album : albums) {
+            if (album == null) continue;
+            String id = album.getId();
+            if (id != null && !LocalMusicRepository.isLocalAlbumId(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void sortByRecentCreated(List<AlbumID3> albums) {
+        if (albums == null || albums.isEmpty()) return;
+        albums.removeIf(item -> item == null);
+        albums.sort((left, right) -> {
+            if (left == null && right == null) return 0;
+            if (left == null) return 1;
+            if (right == null) return -1;
+            java.util.Date leftDate = left.getCreated();
+            java.util.Date rightDate = right.getCreated();
+            if (leftDate == null && rightDate == null) {
+                return Integer.compare(right.getYear(), left.getYear());
+            }
+            if (leftDate == null) return 1;
+            if (rightDate == null) return -1;
+            return rightDate.compareTo(leftDate);
+        });
+    }
+
     public void refreshRecentlyPlayedAlbumList(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            loadLocalAlbumsSample(20, recentlyPlayedAlbumSample);
+            return;
+        }
         albumRepository.getAlbums("recent", 20, null, null).observe(owner, recentlyPlayedAlbumSample::postValue);
     }
 
     public void refreshShares(LifecycleOwner owner) {
+        if (!hasRemoteServer()) {
+            updateListPreservingNonEmpty(shares, Collections.emptyList());
+            return;
+        }
         sharingRepository.getShares().observe(owner, this.shares::postValue);
+    }
+
+    @Override
+    protected void onCleared() {
+        super.onCleared();
+        if (starredTracksSource != null) {
+            starredTracksSource.removeObserver(starredTracksObserver);
+        }
+        if (starredAlbumsSource != null) {
+            starredAlbumsSource.removeObserver(starredAlbumsObserver);
+        }
+        if (starredArtistsSource != null) {
+            starredArtistsSource.removeObserver(starredArtistsObserver);
+        }
+        if (chronologySource != null) {
+            chronologySource.removeObserver(chronologyObserver);
+        }
     }
 
     private void setHomeSectorList() {
@@ -363,6 +680,10 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public void setOfflineFavorite() {
+        if (!hasRemoteServer() || OfflinePolicy.isOffline()) {
+            return;
+        }
+
         ArrayList<Favorite> favorites = getFavorites();
         ArrayList<Favorite> favoritesToSave = getFavoritesToSave(favorites);
         ArrayList<Favorite> favoritesToDelete = getFavoritesToDelete(favorites, favoritesToSave);
