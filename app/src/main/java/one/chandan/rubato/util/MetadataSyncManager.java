@@ -3,13 +3,16 @@ package one.chandan.rubato.util;
 import android.content.Context;
 
 import one.chandan.rubato.App;
-import one.chandan.rubato.glide.CustomGlideRequest;
 import one.chandan.rubato.repository.CacheRepository;
 import one.chandan.rubato.repository.JellyfinLibraryRepository;
 import one.chandan.rubato.repository.JellyfinServerRepository;
 import one.chandan.rubato.repository.LibrarySearchIndexRepository;
+import one.chandan.rubato.sync.CoverArtPrefetchQueue;
+import one.chandan.rubato.sync.SyncMode;
 import one.chandan.rubato.util.SearchIndexBuilder;
 import one.chandan.rubato.util.SearchIndexUtil;
+import one.chandan.rubato.util.OfflinePolicy;
+import one.chandan.rubato.util.MetadataStorageReporter;
 import one.chandan.rubato.model.JellyfinServer;
 import one.chandan.rubato.model.LibrarySearchEntry;
 import one.chandan.rubato.subsonic.base.ApiResponse;
@@ -36,7 +39,8 @@ import retrofit2.Call;
 import retrofit2.Response;
 
 public final class MetadataSyncManager {
-    private static final long MIN_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000L;
+    static final long MIN_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000L;
+    private static final long STALL_THRESHOLD_MS = 15 * 60 * 1000L;
     private static final int ALBUM_PAGE_SIZE = 500;
     private static final AtomicBoolean SYNCING = new AtomicBoolean(false);
 
@@ -51,6 +55,7 @@ public final class MetadataSyncManager {
     public static final String STAGE_COVER_ART = "cover_art";
     public static final String STAGE_LYRICS = "lyrics";
     public static final String STAGE_JELLYFIN = "jellyfin";
+    public static final String STAGE_LOCAL = "local";
     private static final int LOG_INTERVAL_SMALL = 10;
     private static final int LOG_INTERVAL_MEDIUM = 25;
     private static final int LOG_INTERVAL_LARGE = 50;
@@ -60,49 +65,85 @@ public final class MetadataSyncManager {
 
     public static void startIfNeeded(Context context) {
         if (context == null) return;
-        if (NetworkUtil.isOffline()) return;
-        if (Preferences.isDataSavingMode()) return;
-        if (SYNCING.get()) return;
-
-        long lastSync = Preferences.getMetadataSyncLast();
-        if (lastSync > 0 && System.currentTimeMillis() - lastSync < MIN_SYNC_INTERVAL_MS) return;
-
-        SYNCING.set(true);
-        new Thread(() -> {
-            boolean success = false;
-            try {
-                success = runSync(context.getApplicationContext());
-                if (success) {
-                    Preferences.setMetadataSyncLast(System.currentTimeMillis());
-                }
-            } finally {
-                Preferences.setMetadataSyncActive(false);
-                Preferences.setMetadataSyncProgress(null, 0, -1);
-                Preferences.setMetadataSyncStarted(0);
-                SYNCING.set(false);
+        AppExecutors.io().execute(() -> {
+            boolean restarted = recoverIfStalled(context.getApplicationContext());
+            if (!restarted) {
+                runSyncNow(context.getApplicationContext(), false);
             }
-        }, "MetadataSync").start();
+        });
     }
 
-    private static boolean runSync(Context context) {
+    public static boolean runSyncNow(Context context, boolean force) {
         if (context == null) return false;
-        if (!hasSubsonicCredentials()) {
-            Preferences.clearMetadataSyncLogs();
-            logSync(STAGE_PREPARING, "Sync skipped: server credentials missing", true);
-            return false;
+        if (!shouldRun(force)) return false;
+        if (!SYNCING.compareAndSet(false, true)) return false;
+        boolean success = false;
+        try {
+            success = runSync(context.getApplicationContext(), force);
+            if (success) {
+                Preferences.setMetadataSyncLast(System.currentTimeMillis());
+            }
+            return success;
+        } finally {
+            Preferences.setMetadataSyncActive(false);
+            Preferences.setMetadataSyncProgress(null, 0, -1);
+            Preferences.setMetadataSyncProgressUpdated(0);
+            Preferences.setMetadataSyncStarted(0);
+            SYNCING.set(false);
         }
-        if (!verifySubsonicReachable()) {
-            Preferences.clearMetadataSyncLogs();
-            logSync(STAGE_PREPARING, "Sync skipped: server unreachable", true);
-            return false;
-        }
+    }
 
+    public static boolean recoverIfStalled(Context context) {
+        if (context == null) return false;
+        if (!Preferences.isMetadataSyncActive()) return false;
+        long now = System.currentTimeMillis();
+        long lastUpdate = Preferences.getMetadataSyncProgressUpdated();
+        long started = Preferences.getMetadataSyncStarted();
+        long anchor = lastUpdate > 0 ? lastUpdate : started;
+        if (anchor <= 0) return false;
+        if (now - anchor < STALL_THRESHOLD_MS) return false;
+        String stage = Preferences.getMetadataSyncStage();
+        Preferences.appendMetadataSyncLog("Sync stalled, restarting", stage, true);
+        Preferences.setMetadataSyncActive(false);
+        Preferences.setMetadataSyncProgress(null, 0, -1);
+        Preferences.setMetadataSyncProgressUpdated(0);
+        Preferences.setMetadataSyncStarted(0);
+        return runSyncNow(context.getApplicationContext(), true);
+    }
+
+    private static boolean shouldRun(boolean force) {
+        return shouldRunNow(
+                force,
+                TestRunUtil.isInstrumentationTest(),
+                OfflinePolicy.isOffline(),
+                Preferences.isDataSavingMode(),
+                Preferences.getMetadataSyncLast(),
+                System.currentTimeMillis()
+        );
+    }
+
+    static boolean shouldRunNow(boolean force,
+                                boolean isInstrumentation,
+                                boolean isOffline,
+                                boolean isDataSaving,
+                                long lastSync,
+                                long now) {
+        if (force) return true;
+        if (isInstrumentation) return false;
+        if (isOffline) return false;
+        if (isDataSaving) return false;
+        return lastSync <= 0 || now - lastSync >= MIN_SYNC_INTERVAL_MS;
+    }
+
+    private static boolean runSync(Context context, boolean force) {
+        if (context == null) return false;
         CacheRepository cacheRepository = new CacheRepository();
         LibrarySearchIndexRepository searchIndexRepository = new LibrarySearchIndexRepository();
         Map<String, Child> allSongs = new LinkedHashMap<>();
         Set<String> coverArtIds = new HashSet<>();
         Set<String> coverArtUrls = new HashSet<>();
         boolean didWork = false;
+        SyncMode syncMode = force ? SyncMode.FULL : SyncMode.DELTA;
 
         Preferences.setMetadataSyncActive(true);
         Preferences.setMetadataSyncStarted(System.currentTimeMillis());
@@ -111,116 +152,31 @@ public final class MetadataSyncManager {
         Preferences.setMetadataSyncLyricsProgress(0, -1);
         Preferences.clearMetadataSyncLogs();
         logSync(STAGE_PREPARING, "Sync started", false);
-
-        List<Playlist> playlists = syncPlaylists(cacheRepository);
-        if (playlists != null) {
-            didWork = true;
-            for (Playlist playlist : playlists) {
-                if (playlist != null) {
-                    syncPlaylistSongs(cacheRepository, playlist.getId());
-                    if (playlist.getCoverArtId() != null) {
-                        coverArtIds.add(playlist.getCoverArtId());
-                    }
-                }
+        boolean hasCredentials = hasSubsonicCredentials();
+        boolean subsonicReady = hasCredentials && verifySubsonicReachable();
+        if (subsonicReady) {
+            one.chandan.rubato.sync.SubsonicSyncProvider.Result subsonicResult =
+                    one.chandan.rubato.sync.SubsonicSyncProvider.sync(context, cacheRepository, searchIndexRepository, syncMode);
+            if (subsonicResult != null) {
+                didWork = didWork || subsonicResult.didWork;
+                allSongs.putAll(subsonicResult.allSongs);
+                coverArtIds.addAll(subsonicResult.coverArtIds);
+                coverArtUrls.addAll(subsonicResult.coverArtUrls);
             }
+        } else {
+            String reason = hasCredentials ? "server unreachable" : "credentials missing";
+            logSync(STAGE_PREPARING, "Subsonic sync skipped: " + reason, true);
         }
 
-        List<ArtistID3> artists = syncArtists(cacheRepository);
-        if (artists != null) {
-            didWork = true;
-            int artistTotal = artists.size();
-            Preferences.setMetadataSyncProgress(STAGE_ARTIST_DETAILS, 0, artistTotal);
-            int artistIndex = 0;
-            for (ArtistID3 artist : artists) {
-                if (artist == null) continue;
-                if (artist.getCoverArtId() != null) {
-                    coverArtIds.add(artist.getCoverArtId());
-                }
-                ArtistInfo2 info = syncArtistDetails(context, cacheRepository, artist);
-                collectInfoUrls(info, coverArtUrls);
-                artistIndex++;
-                String name = artist.getName() != null ? artist.getName() : artist.getId();
-                logProgress(STAGE_ARTIST_DETAILS, artistIndex, artistTotal, "Artist details: " + name, LOG_INTERVAL_MEDIUM);
-                if (artistIndex % 10 == 0 || artistIndex == artistTotal) {
-                    Preferences.setMetadataSyncProgress(STAGE_ARTIST_DETAILS, artistIndex, artistTotal);
-                }
-            }
+        if (!OfflinePolicy.isOffline() && !Preferences.isDataSavingMode()) {
+            didWork = one.chandan.rubato.sync.JellyfinSyncProvider.sync(cacheRepository, searchIndexRepository, coverArtIds, syncMode) || didWork;
         }
 
-        syncGenres(cacheRepository);
-
-        List<AlbumID3> albums = syncAlbums(cacheRepository);
-        if (albums != null) {
-            didWork = true;
-            int estimatedSongTotal = 0;
-            for (AlbumID3 album : albums) {
-                if (album != null && album.getSongCount() != null) {
-                    estimatedSongTotal += Math.max(album.getSongCount(), 0);
-                }
-            }
-            Preferences.setMetadataSyncProgress(STAGE_SONGS, 0, estimatedSongTotal > 0 ? estimatedSongTotal : -1);
-            int albumIndex = 0;
-            int processedTracks = 0;
-            for (AlbumID3 album : albums) {
-                if (album == null) continue;
-                albumIndex++;
-                if (album.getCoverArtId() != null) coverArtIds.add(album.getCoverArtId());
-                if (album.getId() != null) {
-                    List<Child> tracks = syncAlbumTracks(cacheRepository, album.getId());
-                    if (tracks != null) {
-                        processedTracks += tracks.size();
-                        for (Child track : tracks) {
-                            if (track != null) {
-                                if (track.getId() != null && !allSongs.containsKey(track.getId())) {
-                                    allSongs.put(track.getId(), track);
-                                }
-                                if (track.getCoverArtId() != null) {
-                                    coverArtIds.add(track.getCoverArtId());
-                                }
-                            }
-                        }
-                    }
-                }
-                String name = album.getName() != null ? album.getName() : album.getId();
-                logProgress(STAGE_SONGS, albumIndex, albums.size(), "Album tracks: " + name, LOG_INTERVAL_MEDIUM);
-                if (albumIndex % 10 == 0) {
-                    int total = estimatedSongTotal > 0 ? estimatedSongTotal : -1;
-                    Preferences.setMetadataSyncProgress(STAGE_SONGS, processedTracks, total);
-                }
-            }
-            Preferences.setMetadataSyncProgress(STAGE_SONGS, processedTracks, estimatedSongTotal > 0 ? estimatedSongTotal : -1);
-
-            int albumTotal = albums.size();
-            Preferences.setMetadataSyncProgress(STAGE_ALBUM_DETAILS, 0, albumTotal);
-            int albumDetailsIndex = 0;
-            for (AlbumID3 album : albums) {
-                if (album == null) continue;
-                AlbumInfo info = syncAlbumDetails(context, cacheRepository, album);
-                collectInfoUrls(info, coverArtUrls);
-                albumDetailsIndex++;
-                String name = album.getName() != null ? album.getName() : album.getId();
-                logProgress(STAGE_ALBUM_DETAILS, albumDetailsIndex, albumTotal, "Album details: " + name, LOG_INTERVAL_MEDIUM);
-                if (albumDetailsIndex % 10 == 0 || albumDetailsIndex == albumTotal) {
-                    Preferences.setMetadataSyncProgress(STAGE_ALBUM_DETAILS, albumDetailsIndex, albumTotal);
-                }
-            }
-            logSync(STAGE_ALBUM_DETAILS, "Album details cached (" + albumTotal + ")", true);
-        }
-
-        if (!allSongs.isEmpty()) {
-            cacheRepository.save("songs_all", new ArrayList<>(allSongs.values()));
-            logSync(STAGE_SONGS, "Songs cached (" + allSongs.size() + ")", true);
-        }
-
-        searchIndexRepository.replaceSource(
-                SearchIndexUtil.SOURCE_SUBSONIC,
-                SearchIndexBuilder.buildFromSubsonic(artists, albums, new ArrayList<>(allSongs.values()), playlists)
-        );
-
-        syncJellyfinLibraries(cacheRepository, searchIndexRepository, coverArtIds);
+        didWork = one.chandan.rubato.sync.LocalSyncProvider.sync(context, searchIndexRepository) || didWork;
 
         prefetchCoverArt(context, coverArtIds, coverArtUrls);
         syncLyrics(cacheRepository, allSongs);
+        MetadataStorageReporter.refresh();
         logSync(STAGE_PREPARING, "Sync complete", true);
         return didWork;
     }
@@ -236,7 +192,7 @@ public final class MetadataSyncManager {
     }
 
     private static boolean verifySubsonicReachable() {
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             return false;
         }
         try {
@@ -406,7 +362,7 @@ public final class MetadataSyncManager {
         Preferences.setMetadataSyncProgress(STAGE_ALBUMS, 0, -1);
         logSync(STAGE_ALBUMS, "Fetching albums", false);
         while (true) {
-            if (NetworkUtil.isOffline()) break;
+            if (OfflinePolicy.isOffline()) break;
             try {
                 Call<ApiResponse> call = App.getSubsonicClientInstance(false)
                         .getAlbumSongListClient()
@@ -512,38 +468,17 @@ public final class MetadataSyncManager {
 
         Preferences.setMetadataSyncProgress(STAGE_COVER_ART, 0, total);
         Preferences.setMetadataSyncCoverArtProgress(0, total);
-        logSync(STAGE_COVER_ART, "Prefetching cover art", false);
-
-        int done = 0;
-        if (coverArtIds != null && !coverArtIds.isEmpty()) {
-            for (String coverArtId : coverArtIds) {
-                if (coverArtId == null || coverArtId.isEmpty()) continue;
-                CoverArtPrefetcher.prefetch(context, coverArtId, CustomGlideRequest.ResourceType.Album);
-                done++;
-                if (done % 25 == 0 || done == total) {
-                    Preferences.setMetadataSyncProgress(STAGE_COVER_ART, done, total);
-                    Preferences.setMetadataSyncCoverArtProgress(done, total);
-                    logProgress(STAGE_COVER_ART, done, total, "Cover art cached", LOG_INTERVAL_LARGE);
-                }
-            }
+        if (total <= 0) {
+            logSync(STAGE_COVER_ART, "Cover art queue empty", true);
+            return;
         }
-
-        if (coverArtUrls != null && !coverArtUrls.isEmpty()) {
-            for (String url : coverArtUrls) {
-                if (url == null || url.isEmpty()) continue;
-                CoverArtPrefetcher.prefetchUrl(context, url);
-                done++;
-                if (done % 25 == 0 || done == total) {
-                    Preferences.setMetadataSyncProgress(STAGE_COVER_ART, done, total);
-                    Preferences.setMetadataSyncCoverArtProgress(done, total);
-                    logProgress(STAGE_COVER_ART, done, total, "Cover art cached", LOG_INTERVAL_LARGE);
-                }
-            }
+        if (Preferences.isDataSavingMode()) {
+            logSync(STAGE_COVER_ART, "Cover art prefetch skipped (data saving)", true);
+            return;
         }
-
-        Preferences.setMetadataSyncProgress(STAGE_COVER_ART, done, total);
-        Preferences.setMetadataSyncCoverArtProgress(done, total);
-        logSync(STAGE_COVER_ART, "Cover art cached (" + done + ")", true);
+        logSync(STAGE_COVER_ART, "Queueing cover art", false);
+        CoverArtPrefetchQueue.enqueue(context.getApplicationContext(), coverArtIds, coverArtUrls);
+        logSync(STAGE_COVER_ART, "Cover art queued (" + total + ")", true);
     }
 
     private static void syncLyrics(CacheRepository cacheRepository, Map<String, Child> allSongs) {
@@ -551,7 +486,7 @@ public final class MetadataSyncManager {
             Preferences.setMetadataSyncLyricsProgress(0, 0);
             return;
         }
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             return;
         }
         if (!Preferences.isOpenSubsonic()) {
@@ -569,7 +504,7 @@ public final class MetadataSyncManager {
 
         for (Child song : allSongs.values()) {
             if (song == null || song.getId() == null || song.getId().isEmpty()) continue;
-            if (NetworkUtil.isOffline()) break;
+            if (OfflinePolicy.isOffline()) break;
             try {
                 Call<ApiResponse> call = App.getSubsonicClientInstance(false)
                         .getOpenClient()

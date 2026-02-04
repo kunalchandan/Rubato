@@ -1,11 +1,14 @@
 package one.chandan.rubato.util
 
-import android.util.Log
+import android.content.SharedPreferences
 import androidx.core.content.ContextCompat
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import one.chandan.rubato.App
 import one.chandan.rubato.R
 import one.chandan.rubato.model.HomeSector
 import one.chandan.rubato.subsonic.models.OpenSubsonicExtension
+import one.chandan.rubato.sync.SyncStateStore
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -16,6 +19,7 @@ object Preferences {
     const val METADATA_SYNC_STAGE = "metadata_sync_stage"
     const val METADATA_SYNC_PROGRESS_CURRENT = "metadata_sync_progress_current"
     const val METADATA_SYNC_PROGRESS_TOTAL = "metadata_sync_progress_total"
+    const val METADATA_SYNC_PROGRESS_UPDATED = "metadata_sync_progress_updated"
     const val METADATA_SYNC_COVER_ART_CURRENT = "metadata_sync_cover_art_current"
     const val METADATA_SYNC_COVER_ART_TOTAL = "metadata_sync_cover_art_total"
     const val METADATA_SYNC_LYRICS_CURRENT = "metadata_sync_lyrics_current"
@@ -79,6 +83,17 @@ object Preferences {
     private const val CONTINUOUS_PLAY = "continuous_play"
     private const val LAST_INSTANT_MIX = "last_instant_mix"
     private const val METADATA_SYNC_LAST = "metadata_sync_last"
+    private const val METADATA_SYNC_SUBSONIC_LAST = "metadata_sync_subsonic_last"
+    private const val METADATA_SYNC_SUBSONIC_FULL = "metadata_sync_subsonic_full"
+    private const val METADATA_SYNC_SUBSONIC_SIGNATURE = "metadata_sync_subsonic_signature"
+    private const val METADATA_SYNC_JELLYFIN_LAST = "metadata_sync_jellyfin_last"
+    private const val METADATA_SYNC_JELLYFIN_FULL = "metadata_sync_jellyfin_full"
+    private const val METADATA_SYNC_JELLYFIN_SIGNATURE = "metadata_sync_jellyfin_signature"
+    private const val METADATA_SYNC_LOCAL_LAST = "metadata_sync_local_last"
+    private const val METADATA_SYNC_LOCAL_FULL = "metadata_sync_local_full"
+    private const val METADATA_SYNC_LOCAL_SIGNATURE = "metadata_sync_local_signature"
+    const val METADATA_SYNC_STORAGE_BYTES = "metadata_sync_storage_bytes"
+    const val METADATA_SYNC_STORAGE_UPDATED = "metadata_sync_storage_updated"
     const val METADATA_SYNC_STARTED = "metadata_sync_started"
     private const val METADATA_SYNC_LOG_LIMIT = 200
     private const val LIBRARY_PLAYLIST_ORDER = "library_playlist_order"
@@ -102,7 +117,11 @@ object Preferences {
     private const val CUSTOM_THEME_SECONDARY = "custom_theme_secondary"
     private const val CUSTOM_THEME_TERTIARY = "custom_theme_tertiary"
     private const val SOURCE_PREFERENCE_ORDER = "source_preference_order"
+    private const val SECURE_PREFS_FILE = "secure_prefs"
     private val METADATA_SYNC_LOG_LOCK = Any()
+    private val SECURE_PREFS_LOCK = Any()
+    @Volatile
+    private var securePrefs: SharedPreferences? = null
 
     const val QUEUE_SWIPE_ACTION_PLAY_NEXT = "play_next"
     const val QUEUE_SWIPE_ACTION_ADD_QUEUE = "add_to_queue"
@@ -112,9 +131,9 @@ object Preferences {
     @JvmStatic
     fun getSourcePreferenceOrder(): List<String> {
         val defaultOrder = listOf(
+            SearchIndexUtil.SOURCE_LOCAL,
             SearchIndexUtil.SOURCE_SUBSONIC,
-            SearchIndexUtil.SOURCE_JELLYFIN,
-            SearchIndexUtil.SOURCE_LOCAL
+            SearchIndexUtil.SOURCE_JELLYFIN
         )
         val stored = App.getInstance().preferences.getString(SOURCE_PREFERENCE_ORDER, null)
         if (stored.isNullOrBlank()) {
@@ -129,6 +148,58 @@ object Preferences {
         val cleaned = order.map { it.trim() }.filter { it.isNotEmpty() }
         val value = if (cleaned.isEmpty()) "" else cleaned.joinToString(",")
         App.getInstance().preferences.edit().putString(SOURCE_PREFERENCE_ORDER, value).apply()
+    }
+
+    private fun getSecurePrefs(): SharedPreferences? {
+        val cached = securePrefs
+        if (cached != null) return cached
+        synchronized(SECURE_PREFS_LOCK) {
+            val current = securePrefs
+            if (current != null) return current
+            securePrefs = try {
+                val masterKey = MasterKey.Builder(App.getContext())
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+                EncryptedSharedPreferences.create(
+                    App.getContext(),
+                    SECURE_PREFS_FILE,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } catch (ex: Exception) {
+                null
+            }
+            return securePrefs
+        }
+    }
+
+    private fun getSecret(key: String): String? {
+        val secure = getSecurePrefs()
+        val secureValue = secure?.getString(key, null)
+        if (!secureValue.isNullOrEmpty()) {
+            return secureValue
+        }
+        val legacy = App.getInstance().preferences.getString(key, null)
+        if (!legacy.isNullOrEmpty() && secure != null) {
+            secure.edit().putString(key, legacy).apply()
+            App.getInstance().preferences.edit().remove(key).apply()
+        }
+        return legacy
+    }
+
+    private fun setSecret(key: String, value: String?) {
+        val secure = getSecurePrefs()
+        if (secure != null) {
+            if (value == null) {
+                secure.edit().remove(key).apply()
+            } else {
+                secure.edit().putString(key, value).apply()
+            }
+            App.getInstance().preferences.edit().remove(key).apply()
+        } else {
+            App.getInstance().preferences.edit().putString(key, value).apply()
+        }
     }
 
 
@@ -182,6 +253,12 @@ object Preferences {
     }
 
     @JvmStatic
+    fun hasRemoteServer(): Boolean {
+        val server = getServer()
+        return !server.isNullOrBlank()
+    }
+
+    @JvmStatic
     fun setServer(server: String?) {
         App.getInstance().preferences.edit().putString(SERVER, server).apply()
     }
@@ -198,32 +275,32 @@ object Preferences {
 
     @JvmStatic
     fun getPassword(): String? {
-        return App.getInstance().preferences.getString(PASSWORD, null)
+        return getSecret(PASSWORD)
     }
 
     @JvmStatic
     fun setPassword(password: String?) {
-        App.getInstance().preferences.edit().putString(PASSWORD, password).apply()
+        setSecret(PASSWORD, password)
     }
 
     @JvmStatic
     fun getToken(): String? {
-        return App.getInstance().preferences.getString(TOKEN, null)
+        return getSecret(TOKEN)
     }
 
     @JvmStatic
     fun setToken(token: String?) {
-        App.getInstance().preferences.edit().putString(TOKEN, token).apply()
+        setSecret(TOKEN, token)
     }
 
     @JvmStatic
     fun getSalt(): String? {
-        return App.getInstance().preferences.getString(SALT, null)
+        return getSecret(SALT)
     }
 
     @JvmStatic
     fun setSalt(salt: String?) {
-        App.getInstance().preferences.edit().putString(SALT, salt).apply()
+        setSecret(SALT, salt)
     }
 
     @JvmStatic
@@ -320,6 +397,128 @@ object Preferences {
     @JvmStatic
     fun setMetadataSyncLast(timestamp: Long) {
         App.getInstance().preferences.edit().putLong(METADATA_SYNC_LAST, timestamp).apply()
+        SyncStateStore.notifyChanged()
+    }
+
+    @JvmStatic
+    fun getMetadataSyncSubsonicLast(): Long {
+        return App.getInstance().preferences.getLong(METADATA_SYNC_SUBSONIC_LAST, 0)
+    }
+
+    @JvmStatic
+    fun setMetadataSyncSubsonicLast(timestamp: Long) {
+        App.getInstance().preferences.edit().putLong(METADATA_SYNC_SUBSONIC_LAST, timestamp).apply()
+        SyncStateStore.notifyChanged()
+    }
+
+    @JvmStatic
+    fun getMetadataSyncSubsonicFull(): Long {
+        return App.getInstance().preferences.getLong(METADATA_SYNC_SUBSONIC_FULL, 0)
+    }
+
+    @JvmStatic
+    fun setMetadataSyncSubsonicFull(timestamp: Long) {
+        App.getInstance().preferences.edit().putLong(METADATA_SYNC_SUBSONIC_FULL, timestamp).apply()
+        SyncStateStore.notifyChanged()
+    }
+
+    @JvmStatic
+    fun getMetadataSyncSubsonicSignature(): String? {
+        return App.getInstance().preferences.getString(METADATA_SYNC_SUBSONIC_SIGNATURE, null)
+    }
+
+    @JvmStatic
+    fun setMetadataSyncSubsonicSignature(signature: String?) {
+        App.getInstance().preferences.edit().putString(METADATA_SYNC_SUBSONIC_SIGNATURE, signature).apply()
+        SyncStateStore.notifyChanged()
+    }
+
+    @JvmStatic
+    fun getMetadataSyncJellyfinLast(): Long {
+        return App.getInstance().preferences.getLong(METADATA_SYNC_JELLYFIN_LAST, 0)
+    }
+
+    @JvmStatic
+    fun setMetadataSyncJellyfinLast(timestamp: Long) {
+        App.getInstance().preferences.edit().putLong(METADATA_SYNC_JELLYFIN_LAST, timestamp).apply()
+        SyncStateStore.notifyChanged()
+    }
+
+    @JvmStatic
+    fun getMetadataSyncJellyfinFull(): Long {
+        return App.getInstance().preferences.getLong(METADATA_SYNC_JELLYFIN_FULL, 0)
+    }
+
+    @JvmStatic
+    fun setMetadataSyncJellyfinFull(timestamp: Long) {
+        App.getInstance().preferences.edit().putLong(METADATA_SYNC_JELLYFIN_FULL, timestamp).apply()
+        SyncStateStore.notifyChanged()
+    }
+
+    @JvmStatic
+    fun getMetadataSyncJellyfinSignature(): String? {
+        return App.getInstance().preferences.getString(METADATA_SYNC_JELLYFIN_SIGNATURE, null)
+    }
+
+    @JvmStatic
+    fun setMetadataSyncJellyfinSignature(signature: String?) {
+        App.getInstance().preferences.edit().putString(METADATA_SYNC_JELLYFIN_SIGNATURE, signature).apply()
+        SyncStateStore.notifyChanged()
+    }
+
+    @JvmStatic
+    fun getMetadataSyncLocalLast(): Long {
+        return App.getInstance().preferences.getLong(METADATA_SYNC_LOCAL_LAST, 0)
+    }
+
+    @JvmStatic
+    fun setMetadataSyncLocalLast(timestamp: Long) {
+        App.getInstance().preferences.edit().putLong(METADATA_SYNC_LOCAL_LAST, timestamp).apply()
+        SyncStateStore.notifyChanged()
+    }
+
+    @JvmStatic
+    fun getMetadataSyncLocalFull(): Long {
+        return App.getInstance().preferences.getLong(METADATA_SYNC_LOCAL_FULL, 0)
+    }
+
+    @JvmStatic
+    fun setMetadataSyncLocalFull(timestamp: Long) {
+        App.getInstance().preferences.edit().putLong(METADATA_SYNC_LOCAL_FULL, timestamp).apply()
+        SyncStateStore.notifyChanged()
+    }
+
+    @JvmStatic
+    fun getMetadataSyncLocalSignature(): String? {
+        return App.getInstance().preferences.getString(METADATA_SYNC_LOCAL_SIGNATURE, null)
+    }
+
+    @JvmStatic
+    fun setMetadataSyncLocalSignature(signature: String?) {
+        App.getInstance().preferences.edit().putString(METADATA_SYNC_LOCAL_SIGNATURE, signature).apply()
+        SyncStateStore.notifyChanged()
+    }
+
+    @JvmStatic
+    fun getMetadataSyncStorageBytes(): Long {
+        return App.getInstance().preferences.getLong(METADATA_SYNC_STORAGE_BYTES, 0)
+    }
+
+    @JvmStatic
+    fun setMetadataSyncStorageBytes(bytes: Long) {
+        App.getInstance().preferences.edit().putLong(METADATA_SYNC_STORAGE_BYTES, bytes).apply()
+        SyncStateStore.notifyChanged()
+    }
+
+    @JvmStatic
+    fun getMetadataSyncStorageUpdated(): Long {
+        return App.getInstance().preferences.getLong(METADATA_SYNC_STORAGE_UPDATED, 0)
+    }
+
+    @JvmStatic
+    fun setMetadataSyncStorageUpdated(timestamp: Long) {
+        App.getInstance().preferences.edit().putLong(METADATA_SYNC_STORAGE_UPDATED, timestamp).apply()
+        SyncStateStore.notifyChanged()
     }
 
     @JvmStatic
@@ -330,6 +529,7 @@ object Preferences {
     @JvmStatic
     fun setMetadataSyncStarted(timestamp: Long) {
         App.getInstance().preferences.edit().putLong(METADATA_SYNC_STARTED, timestamp).apply()
+        SyncStateStore.notifyChanged()
     }
 
     @JvmStatic
@@ -348,6 +548,7 @@ object Preferences {
         synchronized(METADATA_SYNC_LOG_LOCK) {
             App.getInstance().preferences.edit().remove(METADATA_SYNC_LOGS).apply()
         }
+        SyncStateStore.notifyChanged()
     }
 
     @JvmStatic
@@ -368,6 +569,7 @@ object Preferences {
             }
             prefs.edit().putString(METADATA_SYNC_LOGS, Gson().toJson(list)).apply()
         }
+        SyncStateStore.notifyChanged()
     }
 
     @JvmStatic
@@ -398,6 +600,7 @@ object Preferences {
     @JvmStatic
     fun setMetadataSyncActive(active: Boolean) {
         App.getInstance().preferences.edit().putBoolean(METADATA_SYNC_ACTIVE, active).apply()
+        SyncStateStore.notifyChanged()
     }
 
     @JvmStatic
@@ -416,12 +619,27 @@ object Preferences {
     }
 
     @JvmStatic
+    fun getMetadataSyncProgressUpdated(): Long {
+        return App.getInstance().preferences.getLong(METADATA_SYNC_PROGRESS_UPDATED, 0)
+    }
+
+    @JvmStatic
+    fun setMetadataSyncProgressUpdated(timestamp: Long) {
+        App.getInstance().preferences.edit()
+            .putLong(METADATA_SYNC_PROGRESS_UPDATED, timestamp)
+            .apply()
+        SyncStateStore.notifyChanged()
+    }
+
+    @JvmStatic
     fun setMetadataSyncProgress(stage: String?, current: Int, total: Int) {
         App.getInstance().preferences.edit()
             .putString(METADATA_SYNC_STAGE, stage)
             .putInt(METADATA_SYNC_PROGRESS_CURRENT, current)
             .putInt(METADATA_SYNC_PROGRESS_TOTAL, total)
+            .putLong(METADATA_SYNC_PROGRESS_UPDATED, System.currentTimeMillis())
             .apply()
+        SyncStateStore.notifyChanged()
     }
 
     @JvmStatic
@@ -439,7 +657,9 @@ object Preferences {
         App.getInstance().preferences.edit()
             .putInt(METADATA_SYNC_COVER_ART_CURRENT, current)
             .putInt(METADATA_SYNC_COVER_ART_TOTAL, total)
+            .putLong(METADATA_SYNC_PROGRESS_UPDATED, System.currentTimeMillis())
             .apply()
+        SyncStateStore.notifyChanged()
     }
 
     @JvmStatic
@@ -457,7 +677,9 @@ object Preferences {
         App.getInstance().preferences.edit()
             .putInt(METADATA_SYNC_LYRICS_CURRENT, current)
             .putInt(METADATA_SYNC_LYRICS_TOTAL, total)
+            .putLong(METADATA_SYNC_PROGRESS_UPDATED, System.currentTimeMillis())
             .apply()
+        SyncStateStore.notifyChanged()
     }
 
     @JvmStatic
@@ -624,9 +846,13 @@ object Preferences {
 
     @JvmStatic
     fun getInUseServerAddress(): String? {
-        return App.getInstance().preferences.getString(IN_USE_SERVER_ADDRESS, null)
+        val address = App.getInstance().preferences.getString(IN_USE_SERVER_ADDRESS, null)
             ?.takeIf { it.isNotBlank() }
             ?: getServer()
+        if (address != null && address.startsWith("http://") && !isLowScurity()) {
+            return "https://" + address.removePrefix("http://")
+        }
+        return address
     }
 
     @JvmStatic
@@ -769,7 +995,7 @@ object Preferences {
 
     @JvmStatic
     fun isCornerRoundingEnabled(): Boolean {
-        return App.getInstance().preferences.getBoolean(ROUNDED_CORNER, false)
+        return App.getInstance().preferences.getBoolean(ROUNDED_CORNER, true)
     }
 
     @JvmStatic
@@ -925,14 +1151,14 @@ object Preferences {
     }
 
     @JvmStatic
-    fun showTempoUpdateDialog(): Boolean {
+    fun showRubatoUpdateDialog(): Boolean {
         return App.getInstance().preferences.getLong(
                 NEXT_UPDATE_CHECK, 0
         ) + 86400000 < System.currentTimeMillis()
     }
 
     @JvmStatic
-    fun setTempoUpdateReminder() {
+    fun setRubatoUpdateReminder() {
         App.getInstance().preferences.edit().putLong(NEXT_UPDATE_CHECK, System.currentTimeMillis()).apply()
     }
 
