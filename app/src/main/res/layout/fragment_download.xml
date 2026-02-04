@@ -77,7 +77,7 @@
                 android:visibility="gone"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@+id/shuffle_downloaded_text_view_clickable" />
+                app:layout_constraintTop_toBottomOf="@+id/downloaded_action_row" />
 
             <com.google.android.material.progressindicator.LinearProgressIndicator
                 android:id="@+id/metadata_sync_progress_bar"
@@ -90,50 +90,55 @@
                 app:layout_constraintTop_toBottomOf="@+id/metadata_sync_status_text_view"
                 app:trackCornerRadius="2dp" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/shuffle_downloaded_text_view_clickable"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:id="@+id/downloaded_action_row"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:layout_marginEnd="12dp"
-                android:text="@string/download_shuffle_all_subtitle"
-                android:textAllCaps="false"
-                app:icon="@drawable/ic_shuffle"
-                app:iconGravity="textStart"
-                app:iconPadding="8dp"
-                app:layout_constraintEnd_toStartOf="@+id/downloaded_group_by_image_view"
-                app:layout_constraintHorizontal_bias="0"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent" />
-
-            <ImageView
-                android:id="@+id/downloaded_group_by_image_view"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_gravity="center"
-                android:layout_marginTop="8dp"
-                android:layout_marginEnd="12dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/filter_title"
-                android:padding="2dp"
-                app:srcCompat="@drawable/ic_filter_list_outlined"
-                app:layout_constraintBottom_toBottomOf="@+id/shuffle_downloaded_text_view_clickable"
-                app:layout_constraintEnd_toStartOf="@+id/metadata_sync_status_icon"
-                app:layout_constraintTop_toTopOf="@+id/shuffle_downloaded_text_view_clickable" />
-
-            <ImageView
-                android:id="@+id/metadata_sync_status_icon"
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:layout_marginTop="8dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:padding="2dp"
-                android:contentDescription="@string/metadata_sync_status_icon_description"
-                app:layout_constraintBottom_toBottomOf="@+id/shuffle_downloaded_text_view_clickable"
+                android:orientation="horizontal"
                 app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toTopOf="@+id/shuffle_downloaded_text_view_clickable"
-                tools:src="@drawable/ic_cloud_download" />
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <Button
+                    android:id="@+id/downloaded_play_button"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="0dp"
+                    android:layout_marginEnd="4dp"
+                    android:layout_weight="1"
+                    android:padding="10dp"
+                    android:text="@string/download_play_button"
+                    android:textAllCaps="false"
+                    app:icon="@drawable/ic_play"
+                    app:iconGravity="textStart"
+                    app:iconPadding="18dp" />
+
+                <Button
+                    android:id="@+id/shuffle_downloaded_text_view_clickable"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="1"
+                    android:padding="10dp"
+                    android:text="@string/download_shuffle_all_subtitle"
+                    android:textAllCaps="false"
+                    app:icon="@drawable/ic_shuffle"
+                    app:iconGravity="textStart"
+                    app:iconPadding="18dp" />
+
+                <ImageView
+                    android:id="@+id/downloaded_group_by_image_view"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginEnd="0dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/filter_title"
+                    android:padding="2dp"
+                    app:srcCompat="@drawable/ic_filter_list_outlined" />
+            </LinearLayout>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/downloaded_recycler_view"

@@ -112,6 +112,36 @@ public class DownloadHorizontalAdapter extends RecyclerView.Adapter<DownloadHori
         return shuffling;
     }
 
+    public List<Child> getOrderedPlaybackList() {
+        if (grouped == null || grouped.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (Constants.DOWNLOAD_TYPE_TRACK.equals(view)) {
+            return new ArrayList<>(grouped);
+        }
+        List<Child> ordered = new ArrayList<>();
+        for (Child group : grouped) {
+            if (group == null) continue;
+            switch (view) {
+                case Constants.DOWNLOAD_TYPE_ALBUM:
+                    appendMatching(ordered, group.getAlbumId(), Constants.DOWNLOAD_TYPE_ALBUM);
+                    break;
+                case Constants.DOWNLOAD_TYPE_ARTIST:
+                    appendMatching(ordered, group.getArtistId(), Constants.DOWNLOAD_TYPE_ARTIST);
+                    break;
+                case Constants.DOWNLOAD_TYPE_GENRE:
+                    appendMatching(ordered, group.getGenre(), Constants.DOWNLOAD_TYPE_GENRE);
+                    break;
+                case Constants.DOWNLOAD_TYPE_YEAR:
+                    appendMatching(ordered, group.getYear() != null ? group.getYear().toString() : null, Constants.DOWNLOAD_TYPE_YEAR);
+                    break;
+                default:
+                    break;
+            }
+        }
+        return ordered;
+    }
+
     @Override
     public int getItemViewType(int position) {
         return 0;
@@ -240,6 +270,38 @@ public class DownloadHorizontalAdapter extends RecyclerView.Adapter<DownloadHori
                 return songs.stream().filter(child -> Objects.equals(child.getArtistId(), filterValue)).collect(Collectors.toList());
             default:
                 return songs;
+        }
+    }
+
+    private void appendMatching(List<Child> target, String value, String type) {
+        if (value == null || target == null) return;
+        if (songs == null || songs.isEmpty()) return;
+        for (Child song : songs) {
+            if (song == null) continue;
+            switch (type) {
+                case Constants.DOWNLOAD_TYPE_ALBUM:
+                    if (value.equals(song.getAlbumId())) {
+                        target.add(song);
+                    }
+                    break;
+                case Constants.DOWNLOAD_TYPE_ARTIST:
+                    if (value.equals(song.getArtistId())) {
+                        target.add(song);
+                    }
+                    break;
+                case Constants.DOWNLOAD_TYPE_GENRE:
+                    if (value.equals(song.getGenre())) {
+                        target.add(song);
+                    }
+                    break;
+                case Constants.DOWNLOAD_TYPE_YEAR:
+                    if (song.getYear() != null && value.equals(song.getYear().toString())) {
+                        target.add(song);
+                    }
+                    break;
+                default:
+                    break;
+            }
         }
     }
 

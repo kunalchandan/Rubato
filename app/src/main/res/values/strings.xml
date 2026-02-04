@@ -1,4 +1,4 @@
-﻿<resources>
+<resources>
     <string name="activity_battery_optimizations_conclusion">If in trouble visit https://dontkillmyapp.com. It provides detailed instructions on how to disable any power-saving features that may affect app\'s performance.</string>
     <string name="activity_battery_optimizations_summary">Please disable battery optimizations for media playback while the screen is off.</string>
     <string name="activity_battery_optimizations_title">Battery Optimizations</string>
@@ -20,7 +20,7 @@
     <string name="album_list_page_new_releases">New releases</string>
     <string name="album_list_page_recently_added">Recently added albums</string>
     <string name="album_list_page_recently_played">Recently played albums</string>
-    <string name="album_list_page_starred">Starred albums</string>
+    <string name="album_list_page_starred">Hearted albums</string>
     <string name="album_list_page_title">Albums</string>
     <string name="album_page_extra_info_button">More like this</string>
     <string name="album_page_play_button">Play</string>
@@ -37,7 +37,7 @@
     <string name="artist_error_retrieving_radio">Error retrieving artist\'s radio</string>
     <string name="artist_error_retrieving_tracks">Error retrieving artist\'s tracks</string>
     <string name="artist_list_page_downloaded">Downloaded artists</string>
-    <string name="artist_list_page_starred">Starred artists</string>
+    <string name="artist_list_page_starred">Hearted artists</string>
     <string name="artist_list_page_title">Artists</string>
     <string name="artist_page_radio_button">Radio</string>
     <string name="artist_page_shuffle_button">Shuffle</string>
@@ -145,11 +145,11 @@
     <string name="home_title_recently_added">Recently added</string>
     <string name="home_title_recently_added_see_all_button">See all</string>
     <string name="home_title_shares">Shares</string>
-    <string name="home_title_starred_albums">★ Starred albums</string>
+    <string name="home_title_starred_albums">Hearted albums</string>
     <string name="home_title_starred_albums_see_all_button">See all</string>
-    <string name="home_title_starred_artists">★ Starred artists</string>
+    <string name="home_title_starred_artists">Hearted artists</string>
     <string name="home_title_starred_artists_see_all_button">See all</string>
-    <string name="home_title_starred_tracks">♥ Hearted tracks</string>
+    <string name="home_title_starred_tracks">Hearted tracks</string>
     <string name="home_title_starred_tracks_see_all_button">See all</string>
     <string name="home_title_top_songs">Your top songs</string>
     <string name="home_option_reorganize">Reorganize</string>
@@ -198,15 +198,22 @@
     <string name="menu_pin_button">Add to home screen</string>
     <string name="menu_unpin_button">Remove from home screen</string>
     <string name="menu_sort_year">Year</string>
+    <string name="menu_heart_album">Heart album</string>
+    <string name="menu_unheart_album">Remove heart</string>
     <string name="player_playback_speed">%1$.2fx</string>
     <string name="player_queue_clean_all_button">Clean play queue</string>
     <string name="player_server_priority">Server Priority</string>
+    <string name="player_cover_action_download">Download</string>
+    <string name="player_cover_action_add_playlist">Add to playlist</string>
+    <string name="player_cover_action_visualizer">Visualizer</string>
+    <string name="player_cover_action_song_radio">Song radio</string>
+    <string name="player_cover_action_lyrics">Lyrics</string>
     <string name="queue_swipe_label_play_next">Play next</string>
     <string name="queue_swipe_label_add_queue">Add to queue</string>
     <string name="queue_swipe_label_like">Like</string>
     <string name="queue_swipe_action_play_next">Play next</string>
     <string name="queue_swipe_action_add_queue">Add to queue</string>
-    <string name="queue_swipe_action_like">Like / Star</string>
+    <string name="queue_swipe_action_like">Like / Heart</string>
     <string name="queue_swipe_action_none">None</string>
     <string name="settings_swipe_left_title">Swipe left action</string>
     <string name="settings_swipe_right_title">Swipe right action</string>
@@ -214,8 +221,18 @@
     <string name="settings_title_diagnostics">Diagnostics</string>
     <string name="settings_local_telemetry_title">Local performance telemetry</string>
     <string name="settings_local_telemetry_summary">Stores performance events locally on your device only. Never uploaded.</string>
+    <string name="settings_local_telemetry_export_title">Export telemetry</string>
+    <string name="settings_local_telemetry_export_summary">Saves a JSONL export to device storage for diagnostics.</string>
+    <string name="settings_local_telemetry_clear_title">Clear telemetry</string>
+    <string name="settings_local_telemetry_clear_summary">Deletes locally stored telemetry events.</string>
+    <string name="settings_local_telemetry_export_disabled">Enable local telemetry to export.</string>
+    <string name="settings_local_telemetry_export_success">Telemetry exported to: %1$s</string>
+    <string name="settings_local_telemetry_export_failed">Telemetry export failed.</string>
+    <string name="settings_local_telemetry_clear_success">Telemetry cleared.</string>
     <string name="favorite_added">Added to favorites</string>
     <string name="favorite_removed">Removed from favorites</string>
+    <string name="favorite_unavailable">Favorite unavailable for this track.</string>
+    <string name="favorite_unsupported_source">Favorites are not available for this source yet.</string>
     <string name="playlist_catalogue_title">Playlist Catalogue</string>
     <string name="playlist_catalogue_title_expanded">Browse Playlists</string>
     <string name="playlist_chooser_dialog_empty">No playlists created</string>
@@ -316,7 +333,7 @@
     <string name="settings_download_storage_title">Download storage</string>
     <string name="settings_equalizer_summary">Adjust audio settings</string>
     <string name="settings_equalizer_title">Equalizer</string>
-    <string name="settings_github_link">https://github.com/CappielloAntonio/tempo</string>
+    <string name="settings_github_link">https://github.com/kunalchandan/Rubato</string>
     <string name="settings_github_summary">Follow the development</string>
     <string name="settings_github_title">Github</string>
     <string name="settings_image_size">Set image resolution</string>
@@ -442,11 +459,13 @@
     <string name="metadata_sync_stage_cover_art">Cover art</string>
     <string name="metadata_sync_stage_lyrics">Lyrics</string>
     <string name="metadata_sync_status_offline">Metadata sync: offline</string>
+    <string name="metadata_sync_status_no_server">Metadata sync: no server configured</string>
     <string name="metadata_sync_status_not_active">Not currently syncing</string>
     <string name="metadata_sync_dialog_title">Metadata sync</string>
     <string name="metadata_sync_dialog_subtitle_placeholder">Server connection: checking</string>
     <string name="metadata_sync_dialog_subtitle_online">Server connection: online</string>
     <string name="metadata_sync_dialog_subtitle_offline">Server connection: offline</string>
+    <string name="metadata_sync_dialog_subtitle_no_server">Server connection: not configured</string>
     <string name="metadata_sync_dialog_active_title">Active download</string>
     <string name="metadata_sync_log_title">Activity log</string>
     <string name="metadata_sync_log_empty">No sync activity yet.</string>
@@ -537,6 +556,9 @@
     <string name="music_sources_empty_local">No local folders added yet.</string>
     <string name="jellyfin_server_dialog_title">Add Jellyfin server</string>
     <string name="jellyfin_server_dialog_positive_button">Connect</string>
+    <string name="jellyfin_server_dialog_save_button">Save</string>
+    <string name="toolbar_album_title_format">Album | %1$s</string>
+    <string name="toolbar_song_title_format">Song | %1$s</string>
     <string name="jellyfin_server_name_hint">Server name</string>
     <string name="jellyfin_server_username_hint">Username</string>
     <string name="jellyfin_server_password_hint">Password</string>
@@ -591,6 +613,8 @@
     <string name="queue_add_next_unavailable_offline">Track unavailable offline</string>
     <string name="playlist_reorder_saved">Playlist order updated</string>
     <string name="playlist_reorder_offline">Reorder requires an online connection</string>
+    <string name="instant_mix_empty_snackbar">No song radio available for this track.</string>
+    <string name="download_play_button">Play</string>
     <string name="song_list_page_downloaded">Downloaded</string>
     <string name="song_list_page_most_played">Most played tracks</string>
     <string name="song_list_page_recently_added">Recently added tracks</string>
@@ -660,6 +684,8 @@
     <string name="visualizer_disabled_message">Visualizer is disabled in settings.</string>
     <string name="visualizer_unavailable_session">Visualizer unavailable for this playback.</string>
     <string name="visualizer_error_init">Visualizer not supported on this device.</string>
+    <string name="visualizer_permission_required">Microphone permission is required for the visualizer.</string>
+    <string name="settings_local_music_permission_required">Music permission is required to show local songs.</string>
     <string name="settings_visualizer_title">Visualizer</string>
     <string name="settings_visualizer_summary">Configure the visualizer overlay</string>
 </resources>

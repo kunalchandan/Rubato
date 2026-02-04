@@ -32,10 +32,9 @@ import one.chandan.rubato.service.MediaService;
 import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.ui.activity.MainActivity;
 import one.chandan.rubato.ui.adapter.DownloadHorizontalAdapter;
-import one.chandan.rubato.ui.dialog.MetadataSyncStatusDialog;
+import one.chandan.rubato.ui.state.DownloadUiState;
 import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.FavoriteUtil;
-import one.chandan.rubato.util.NetworkUtil;
 import one.chandan.rubato.util.Preferences;
 import one.chandan.rubato.util.TelemetryLogger;
 import one.chandan.rubato.viewmodel.DownloadViewModel;
@@ -156,24 +155,16 @@ public class DownloadFragment extends Fragment implements ClickCallback {
         downloadHorizontalAdapter = new DownloadHorizontalAdapter(this);
         bind.downloadedRecyclerView.setAdapter(downloadHorizontalAdapter);
         setupDownloadSwipeHelper();
+        setupPlayButton();
 
-        downloadViewModel.getDownloadedTracks(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), songs -> {
-            if (songs == null) return;
-            currentDownloads = songs;
-            renderDownloadList();
-        });
-
-        downloadViewModel.getViewStack().observe(getViewLifecycleOwner(), stack -> {
-            if (stack == null || stack.isEmpty()) return;
-            currentStack = stack;
+        downloadViewModel.getUiState(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), state -> {
+            if (state == null) return;
+            currentDownloads = state.downloads != null ? state.downloads : Collections.emptyList();
+            currentStack = state.stack != null ? state.stack : Collections.emptyList();
             renderDownloadList();
         });
 
         bind.downloadedGroupByImageView.setOnClickListener(view -> showPopupMenu(view, R.menu.download_popup_menu));
-        bind.metadataSyncStatusIcon.setOnClickListener(view -> {
-            MetadataSyncStatusDialog dialog = new MetadataSyncStatusDialog();
-            dialog.show(requireActivity().getSupportFragmentManager(), null);
-        });
     }
 
     private void renderDownloadList() {
@@ -237,7 +228,7 @@ public class DownloadFragment extends Fragment implements ClickCallback {
         if (!renderLogged && !currentDownloads.isEmpty()) {
             renderLogged = true;
             long duration = Math.max(0, SystemClock.elapsedRealtime() - renderStartMs);
-            TelemetryLogger.logEvent("Downloads", "render", "download_list", duration);
+            TelemetryLogger.logEvent("Downloads", "render", "download_list", duration, TelemetryLogger.SOURCE_LIST, null);
         }
     }
 
@@ -292,8 +283,6 @@ public class DownloadFragment extends Fragment implements ClickCallback {
         if (bind == null) return;
 
         boolean active = Preferences.isMetadataSyncActive();
-        bind.metadataSyncStatusIcon.setVisibility(View.VISIBLE);
-        bind.metadataSyncStatusIcon.setImageResource(resolveMetadataStatusIcon(active));
         if (!active) {
             bind.metadataSyncStatusTextView.setVisibility(View.GONE);
             bind.metadataSyncProgressBar.setVisibility(View.GONE);
@@ -321,24 +310,6 @@ public class DownloadFragment extends Fragment implements ClickCallback {
         bind.metadataSyncStatusTextView.setText(statusText);
         bind.metadataSyncStatusTextView.setVisibility(View.VISIBLE);
         bind.metadataSyncProgressBar.setVisibility(View.VISIBLE);
-    }
-
-    private int resolveMetadataStatusIcon(boolean active) {
-        if (NetworkUtil.isOffline()) {
-            return R.drawable.ic_cloud_off;
-        }
-        if (active) {
-            return R.drawable.ic_downloading;
-        }
-        int current = Preferences.getMetadataSyncProgressCurrent();
-        int total = Preferences.getMetadataSyncProgressTotal();
-        if (total > 0 && current >= total) {
-            return R.drawable.ic_cloud_done;
-        }
-        if (current > 0 || total > 0) {
-            return R.drawable.ic_cloud_download;
-        }
-        return R.drawable.ic_cloud_download;
     }
 
     private String resolveMetadataStageLabel(@Nullable String stage) {
@@ -376,6 +347,16 @@ public class DownloadFragment extends Fragment implements ClickCallback {
 
             if (songs != null && !songs.isEmpty()) {
                 Collections.shuffle(songs);
+                MediaManager.startQueue(mediaBrowserListenableFuture, songs, 0);
+                activity.setBottomSheetInPeek(true);
+            }
+        });
+    }
+
+    private void setupPlayButton() {
+        bind.downloadedPlayButton.setOnClickListener(view -> {
+            List<Child> songs = downloadHorizontalAdapter.getOrderedPlaybackList();
+            if (songs != null && !songs.isEmpty()) {
                 MediaManager.startQueue(mediaBrowserListenableFuture, songs, 0);
                 activity.setBottomSheetInPeek(true);
             }

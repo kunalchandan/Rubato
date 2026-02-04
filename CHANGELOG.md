@@ -1,6 +1,16 @@
 # CHANGELOG (Rubato fork)
-All changes since upstream Tempo.
-Last updated: 2026-02-02
+All changes since the upstream base.
+Last updated: 2026-02-03
+
+## Recent updates (2026-02-03)
+- Downloaded page actions now mirror album controls with Play/Shuffle/Filter; Play uses the on-screen order (group-aware).
+- Visualizer: FFT-based capture + smoothing; settings preview is stable and slider values are clamped to valid steps.
+- Home/Library/Genre/Filter no longer refresh on every sync tick; refresh happens only on sync completion to prevent UI churn.
+- Horizontal adapters now update synchronously when unfiltered to avoid item loss from async filter races.
+- Album tracks now fall back to local + cached Subsonic + cached Jellyfin metadata matching when direct lookup fails.
+- Album/Song toolbars now show "Album |" / "Song |" prefixes; album download is a visible toolbar action (no overflow).
+- Jellyfin add flow split into two steps: credentials → library selection, with explicit Save.
+- Home "New Releases" sorting hardened against null dates to prevent crashes.
 
 ## Branding + UI refresh
 - App name updated to Rubato; package/app id/deeplink updated to `one.chandan.rubato`.
@@ -24,7 +34,7 @@ Last updated: 2026-02-02
 - Download notifications: now show title + artist, x/y queue progress, and open album/player on tap.
 - Per-screen gfxinfo traces captured (Home/Library/Downloaded) with targeted RecyclerView optimizations.
 - Shared RecyclerView pools for heavy lists; list caching tuned for Downloaded.
-- Optional local telemetry (SQLite/Room) for performance/action events with opt-in and “local only” disclosure.
+- Optional local telemetry (SQLite/Room) for performance/action events with opt-in and "local only" disclosure.
 - Playlist cover persistence: deterministic collage caching for playlists with no explicit cover.
 - Metadata sync now includes lyrics and additional non-audio metadata where available.
 - Search suggestions show images and subtitles (type labels).
