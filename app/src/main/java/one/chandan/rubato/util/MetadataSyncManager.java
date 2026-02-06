@@ -3,6 +3,7 @@ package one.chandan.rubato.util;
 import android.content.Context;
 
 import one.chandan.rubato.App;
+import one.chandan.rubato.database.AppDatabase;
 import one.chandan.rubato.repository.CacheRepository;
 import one.chandan.rubato.repository.JellyfinLibraryRepository;
 import one.chandan.rubato.repository.JellyfinServerRepository;
@@ -33,6 +34,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import retrofit2.Call;
@@ -74,8 +80,12 @@ public final class MetadataSyncManager {
     }
 
     public static boolean runSyncNow(Context context, boolean force) {
+        return runSyncNow(context, force, false);
+    }
+
+    public static boolean runSyncNow(Context context, boolean force, boolean ignoreInterval) {
         if (context == null) return false;
-        if (!shouldRun(force)) return false;
+        if (!shouldRun(force, ignoreInterval)) return false;
         if (!SYNCING.compareAndSet(false, true)) return false;
         boolean success = false;
         try {
@@ -111,9 +121,10 @@ public final class MetadataSyncManager {
         return runSyncNow(context.getApplicationContext(), true);
     }
 
-    private static boolean shouldRun(boolean force) {
+    private static boolean shouldRun(boolean force, boolean ignoreInterval) {
         return shouldRunNow(
                 force,
+                ignoreInterval,
                 TestRunUtil.isInstrumentationTest(),
                 OfflinePolicy.isOffline(),
                 Preferences.isDataSavingMode(),
@@ -123,12 +134,13 @@ public final class MetadataSyncManager {
     }
 
     static boolean shouldRunNow(boolean force,
+                                boolean ignoreInterval,
                                 boolean isInstrumentation,
                                 boolean isOffline,
                                 boolean isDataSaving,
                                 long lastSync,
                                 long now) {
-        if (force) return true;
+        if (force || ignoreInterval) return true;
         if (isInstrumentation) return false;
         if (isOffline) return false;
         if (isDataSaving) return false;
@@ -153,8 +165,9 @@ public final class MetadataSyncManager {
         Preferences.clearMetadataSyncLogs();
         logSync(STAGE_PREPARING, "Sync started", false);
         boolean hasCredentials = hasSubsonicCredentials();
-        boolean subsonicReady = hasCredentials && verifySubsonicReachable();
-        if (subsonicReady) {
+        boolean canAttemptSubsonic = hasCredentials && !OfflinePolicy.isOffline();
+        if (canAttemptSubsonic) {
+            AppExecutors.io().execute(MetadataSyncManager::verifySubsonicReachable);
             one.chandan.rubato.sync.SubsonicSyncProvider.Result subsonicResult =
                     one.chandan.rubato.sync.SubsonicSyncProvider.sync(context, cacheRepository, searchIndexRepository, syncMode);
             if (subsonicResult != null) {
@@ -164,7 +177,14 @@ public final class MetadataSyncManager {
                 coverArtUrls.addAll(subsonicResult.coverArtUrls);
             }
         } else {
-            String reason = hasCredentials ? "server unreachable" : "credentials missing";
+            String reason;
+            if (!hasCredentials) {
+                reason = "credentials missing";
+            } else if (OfflinePolicy.isOffline()) {
+                reason = "offline mode";
+            } else {
+                reason = "server unreachable";
+            }
             logSync(STAGE_PREPARING, "Subsonic sync skipped: " + reason, true);
         }
 
@@ -174,11 +194,137 @@ public final class MetadataSyncManager {
 
         didWork = one.chandan.rubato.sync.LocalSyncProvider.sync(context, searchIndexRepository) || didWork;
 
+        if (allSongs.isEmpty() || coverArtIds.isEmpty()) {
+            hydrateFromCache(cacheRepository, allSongs, coverArtIds);
+        }
+
         prefetchCoverArt(context, coverArtIds, coverArtUrls);
         syncLyrics(cacheRepository, allSongs);
         MetadataStorageReporter.refresh();
         logSync(STAGE_PREPARING, "Sync complete", true);
         return didWork;
+    }
+
+    private static void hydrateFromCache(CacheRepository cacheRepository,
+                                         Map<String, Child> allSongs,
+                                         Set<String> coverArtIds) {
+        if (cacheRepository == null) return;
+        List<Child> cachedSongs = cacheRepository.loadBlocking(
+                "songs_all",
+                new com.google.gson.reflect.TypeToken<List<Child>>() {
+                }.getType()
+        );
+        if (cachedSongs != null) {
+            for (Child song : cachedSongs) {
+                if (song == null || song.getId() == null || song.getId().isEmpty()) continue;
+                if (!allSongs.containsKey(song.getId())) {
+                    allSongs.put(song.getId(), song);
+                }
+                if (song.getCoverArtId() != null) {
+                    coverArtIds.add(song.getCoverArtId());
+                }
+            }
+        }
+
+        List<AlbumID3> cachedAlbums = cacheRepository.loadBlocking(
+                "albums_all",
+                new com.google.gson.reflect.TypeToken<List<AlbumID3>>() {
+                }.getType()
+        );
+        if (cachedAlbums != null) {
+            for (AlbumID3 album : cachedAlbums) {
+                if (album == null) continue;
+                if (album.getCoverArtId() != null) {
+                    coverArtIds.add(album.getCoverArtId());
+                }
+            }
+        }
+
+        List<ArtistID3> cachedArtists = cacheRepository.loadBlocking(
+                "artists_all",
+                new com.google.gson.reflect.TypeToken<List<ArtistID3>>() {
+                }.getType()
+        );
+        if (cachedArtists != null) {
+            for (ArtistID3 artist : cachedArtists) {
+                if (artist == null) continue;
+                if (artist.getCoverArtId() != null) {
+                    coverArtIds.add(artist.getCoverArtId());
+                }
+            }
+        }
+
+        List<Playlist> cachedPlaylists = cacheRepository.loadBlocking(
+                "playlists",
+                new com.google.gson.reflect.TypeToken<List<Playlist>>() {
+                }.getType()
+        );
+        if (cachedPlaylists != null) {
+            for (Playlist playlist : cachedPlaylists) {
+                if (playlist == null) continue;
+                if (playlist.getCoverArtId() != null) {
+                    coverArtIds.add(playlist.getCoverArtId());
+                }
+            }
+        }
+
+        if (allSongs.isEmpty() || coverArtIds.isEmpty()) {
+            List<one.chandan.rubato.model.SearchSongLite> liteSongs =
+                    AppDatabase.getInstance().librarySearchEntryDao()
+                            .getAllLiteByType(SearchIndexUtil.TYPE_SONG);
+            if (liteSongs != null) {
+                for (one.chandan.rubato.model.SearchSongLite entry : liteSongs) {
+                    if (entry == null) continue;
+                    String id = entry.getItemId();
+                    if (id == null || id.isEmpty()) continue;
+                    if (SearchIndexUtil.SOURCE_SUBSONIC.equals(entry.getSource())) {
+                        if (!allSongs.containsKey(id)) {
+                            Child child = new Child(id);
+                            child.setTitle(entry.getTitle());
+                            child.setArtist(entry.getArtist());
+                            child.setAlbum(entry.getAlbum());
+                            child.setAlbumId(entry.getAlbumId());
+                            child.setArtistId(entry.getArtistId());
+                            child.setCoverArtId(entry.getCoverArt());
+                            allSongs.put(id, child);
+                        }
+                    }
+                    if (entry.getCoverArt() != null && !entry.getCoverArt().isEmpty()) {
+                        coverArtIds.add(entry.getCoverArt());
+                    }
+                }
+            }
+
+            if (coverArtIds.isEmpty()) {
+                List<one.chandan.rubato.model.SearchSongLite> liteAlbums =
+                        AppDatabase.getInstance().librarySearchEntryDao()
+                                .getAllLiteByType(SearchIndexUtil.TYPE_ALBUM);
+                if (liteAlbums != null) {
+                    for (one.chandan.rubato.model.SearchSongLite entry : liteAlbums) {
+                        if (entry == null) continue;
+                        String coverArt = entry.getCoverArt();
+                        if (coverArt != null && !coverArt.isEmpty()) {
+                            coverArtIds.add(coverArt);
+                        }
+                    }
+                }
+                List<one.chandan.rubato.model.SearchSongLite> liteArtists =
+                        AppDatabase.getInstance().librarySearchEntryDao()
+                                .getAllLiteByType(SearchIndexUtil.TYPE_ARTIST);
+                if (liteArtists != null) {
+                    for (one.chandan.rubato.model.SearchSongLite entry : liteArtists) {
+                        if (entry == null) continue;
+                        String coverArt = entry.getCoverArt();
+                        if (coverArt != null && !coverArt.isEmpty()) {
+                            coverArtIds.add(coverArt);
+                        }
+                    }
+                }
+            }
+        }
+        if (!allSongs.isEmpty() || !coverArtIds.isEmpty()) {
+            logSync(STAGE_PREPARING, "Using cached metadata for lyrics/cover art", false);
+        }
     }
 
     private static boolean hasSubsonicCredentials() {
@@ -195,32 +341,53 @@ public final class MetadataSyncManager {
         if (OfflinePolicy.isOffline()) {
             return false;
         }
+        Call<ApiResponse> call = App.getSubsonicClientInstance(false).getSystemClient().ping();
         try {
-            Call<ApiResponse> call = App.getSubsonicClientInstance(false).getSystemClient().ping();
-            Response<ApiResponse> response = call.execute();
-            if (!response.isSuccessful() || response.body() == null) {
+            call.timeout().timeout(10, TimeUnit.SECONDS);
+        } catch (Exception ignored) {
+        }
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<Boolean> future = executor.submit(() -> {
+            try {
+                Response<ApiResponse> response = call.execute();
+                if (!response.isSuccessful() || response.body() == null) {
+                    ServerStatus.markUnreachable();
+                    return false;
+                }
+                SubsonicResponse subsonicResponse = response.body().getSubsonicResponse();
+                if (subsonicResponse == null) {
+                    ServerStatus.markUnreachable();
+                    return false;
+                }
+                if (subsonicResponse.getError() != null) {
+                    ServerStatus.markUnreachable();
+                    return false;
+                }
+                if (subsonicResponse.getStatus() != null
+                        && "failed".equalsIgnoreCase(subsonicResponse.getStatus())) {
+                    ServerStatus.markUnreachable();
+                    return false;
+                }
+                ServerStatus.markReachable();
+                return true;
+            } catch (Exception ignored) {
                 ServerStatus.markUnreachable();
                 return false;
             }
-            SubsonicResponse subsonicResponse = response.body().getSubsonicResponse();
-            if (subsonicResponse == null) {
-                ServerStatus.markUnreachable();
-                return false;
-            }
-            if (subsonicResponse.getError() != null) {
-                ServerStatus.markUnreachable();
-                return false;
-            }
-            if (subsonicResponse.getStatus() != null
-                    && "failed".equalsIgnoreCase(subsonicResponse.getStatus())) {
-                ServerStatus.markUnreachable();
-                return false;
-            }
-            ServerStatus.markReachable();
-            return true;
+        });
+
+        try {
+            return future.get(10, TimeUnit.SECONDS);
+        } catch (TimeoutException ignored) {
+            call.cancel();
+            ServerStatus.markUnreachable();
+            return false;
         } catch (Exception ignored) {
             ServerStatus.markUnreachable();
             return false;
+        } finally {
+            executor.shutdownNow();
         }
     }
 
@@ -465,19 +632,21 @@ public final class MetadataSyncManager {
         int total = 0;
         if (coverArtIds != null) total += coverArtIds.size();
         if (coverArtUrls != null) total += coverArtUrls.size();
-
-        Preferences.setMetadataSyncProgress(STAGE_COVER_ART, 0, total);
-        Preferences.setMetadataSyncCoverArtProgress(0, total);
         if (total <= 0) {
+            Preferences.setMetadataSyncProgress(STAGE_COVER_ART, 0, 0);
+            Preferences.setMetadataSyncCoverArtProgress(0, 0);
             logSync(STAGE_COVER_ART, "Cover art queue empty", true);
             return;
         }
         if (Preferences.isDataSavingMode()) {
+            Preferences.setMetadataSyncProgress(STAGE_COVER_ART, 0, 0);
+            Preferences.setMetadataSyncCoverArtProgress(0, 0);
             logSync(STAGE_COVER_ART, "Cover art prefetch skipped (data saving)", true);
             return;
         }
         logSync(STAGE_COVER_ART, "Queueing cover art", false);
         CoverArtPrefetchQueue.enqueue(context.getApplicationContext(), coverArtIds, coverArtUrls);
+        Preferences.setMetadataSyncProgress(STAGE_COVER_ART, 0, Preferences.getMetadataSyncCoverArtTotal());
         logSync(STAGE_COVER_ART, "Cover art queued (" + total + ")", true);
     }
 
