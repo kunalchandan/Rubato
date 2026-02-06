@@ -1,6 +1,35 @@
 # CHANGELOG (Rubato fork)
 All changes since the upstream base.
-Last updated: 2026-02-03
+Last updated: 2026-02-06
+
+## Recent updates (2026-02-06)
+- Android Auto: removed the top-level "Made for you" browse page and disabled AA search commands to eliminate the split-screen "For you / What do you want to listen to?" surface.
+- Android Auto: artist fallback artwork now embeds the Material Symbol icon data, ensuring Artists uses the correct icon when no artist art exists.
+- Fixed metadata sync crashes from oversized cache rows by chunking large cached lists and capping payload sizes.
+- Added cache chunk retrieval/cleanup helpers in Room DAO and CacheRepository.
+- Subsonic sync now uses consistent request timeouts and no longer blocks on ping/scan status.
+- Added scan-status timeout logging to keep sync progress visible even when the server is slow.
+
+## Recent updates (2026-02-05)
+- AA headers now show icons again (Recently Played, Made for you, Genres, etc.) via the AA artwork provider.
+- AA song artwork now falls back to album art when track art is missing, restoring covers in AA song lists.
+- AA artist cards no longer duplicate the artist name as a subtitle; artwork URIs now use the AA artwork provider.
+- Android Auto UI simplified to a single library-style root with Recently Played + Made for you grid entries.
+- Android Auto "Made for you" now surfaces multiple "Mix from <song>" tiles with cover art overlay badges.
+- Added AA artwork content provider to serve mix-overlay covers and log art requests.
+- AA song lists now fall back to search index when cache is local-only, improving multi-source coverage.
+- AA browse logging expanded (AutoDiag) to validate node counts + artwork fetches.
+- Fixed AA crash risk by moving chronology DB reads off the main thread during AA browse.
+- Regenerated phone (light/dark), Android Auto (light/dark), and tablet (7"/10") screenshots with extended load delays.
+- Screenshot automation now enforces a capture delay and dismisses ANR dialogs on slow devices.
+
+## Recent updates (2026-02-04)
+- Album page now reuses a single tracks LiveData seeded from the full Album object, fixing missing song lists when navigating from Library > Album.
+- Home/Library navigation now preserves fragment state + scroll position across tab switches and back navigation (no forced refresh).
+- Metadata sync status: new "Sync now" action in the popup dialog.
+- Cache guard expanded for `songs_all` payloads to prevent deletes; sync counts now persist for large libraries.
+- Discovery mix: if both local + remote tracks exist, the first item is forced to be remote to avoid local-leading bias.
+- Library "See all albums" now orders remote sources ahead of local and sorts by title/artist for stable ordering.
 
 ## Recent updates (2026-02-03)
 - Downloaded page actions now mirror album controls with Play/Shuffle/Filter; Play uses the on-screen order (group-aware).
@@ -12,7 +41,7 @@ Last updated: 2026-02-03
 - Horizontal adapters now update synchronously when unfiltered to avoid item loss from async filter races.
 - Album tracks now fall back to local + cached Subsonic + cached Jellyfin metadata matching when direct lookup fails.
 - Album/Song toolbars now show "Album |" / "Song |" prefixes; album download is a visible toolbar action (no overflow).
-- Jellyfin add flow split into two steps: credentials → library selection, with explicit Save.
+- Jellyfin add flow split into two steps: credentials -> library selection, with explicit Save.
 - Home "New Releases" sorting hardened against null dates to prevent crashes.
 
 ## Branding + UI refresh
@@ -64,3 +93,4 @@ Last updated: 2026-02-03
 ## Notes / partial work (tracked in TODO)
 - Jellyfin browse UI wiring and full library merge validation still in progress.
 - DHU Android Auto validation requires a physical device/head unit server.
+
