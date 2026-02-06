@@ -28,16 +28,26 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import retrofit2.Call;
 import retrofit2.Response;
 
 public final class SubsonicSyncProvider {
     private static final int ALBUM_PAGE_SIZE = 500;
+    private static final int PARALLELISM = 4;
     private static final int LOG_INTERVAL_SMALL = 10;
     private static final int LOG_INTERVAL_MEDIUM = 25;
     private static final int LOG_INTERVAL_LARGE = 50;
+    private static final int NETWORK_TIMEOUT_SECONDS = 20;
+    private static final int ALBUM_TRACK_TIMEOUT_SECONDS = 30;
+    private static final int SIGNATURE_TIMEOUT_SECONDS = 12;
 
     private SubsonicSyncProvider() {
     }
@@ -56,6 +66,9 @@ public final class SubsonicSyncProvider {
             logSync(MetadataSyncManager.STAGE_PREPARING, "Subsonic delta: no changes", true);
             Preferences.setMetadataSyncSubsonicLast(now);
             return result;
+        }
+        if (mode == SyncMode.DELTA && signature == null) {
+            logSync(MetadataSyncManager.STAGE_PREPARING, "Subsonic signature unavailable; forcing full sync", false);
         }
 
         List<Playlist> playlists = syncPlaylists(cacheRepository);
@@ -76,21 +89,44 @@ public final class SubsonicSyncProvider {
         if (artists != null) {
             result.didWork = true;
             result.artists = artists;
-            int artistTotal = artists.size();
-            Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_ARTIST_DETAILS, 0, artistTotal);
-            int artistIndex = 0;
+            List<ArtistID3> artistItems = new ArrayList<>();
             for (ArtistID3 artist : artists) {
-                if (artist == null) continue;
-                if (artist.getCoverArtId() != null) {
-                    result.coverArtIds.add(artist.getCoverArtId());
+                if (artist != null) artistItems.add(artist);
+            }
+            int artistTotal = artistItems.size();
+            Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_ARTIST_DETAILS, 0, artistTotal);
+            if (artistTotal > 0) {
+                ExecutorService executor = Executors.newFixedThreadPool(PARALLELISM);
+                CompletionService<ArtistDetailsResult> completion = new ExecutorCompletionService<>(executor);
+                for (ArtistID3 artist : artistItems) {
+                    completion.submit(() -> new ArtistDetailsResult(artist, syncArtistDetails(context, cacheRepository, artist)));
                 }
-                ArtistInfo2 info = syncArtistDetails(context, cacheRepository, artist);
-                collectInfoUrls(info, result.coverArtUrls);
-                artistIndex++;
-                String name = artist.getName() != null ? artist.getName() : artist.getId();
-                logProgress(MetadataSyncManager.STAGE_ARTIST_DETAILS, artistIndex, artistTotal, "Artist details: " + name, LOG_INTERVAL_MEDIUM);
-                if (artistIndex % 10 == 0 || artistIndex == artistTotal) {
-                    Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_ARTIST_DETAILS, artistIndex, artistTotal);
+                int artistIndex = 0;
+                try {
+                    for (int i = 0; i < artistTotal; i++) {
+                        Future<ArtistDetailsResult> future = completion.take();
+                        ArtistDetailsResult resultItem;
+                        try {
+                            resultItem = future.get();
+                        } catch (Exception ex) {
+                            continue;
+                        }
+                        artistIndex++;
+                        ArtistID3 artist = resultItem.artist;
+                        if (artist != null && artist.getCoverArtId() != null) {
+                            result.coverArtIds.add(artist.getCoverArtId());
+                        }
+                        collectInfoUrls(resultItem.info, result.coverArtUrls);
+                        String name = artist != null && artist.getName() != null ? artist.getName() : (artist != null ? artist.getId() : null);
+                        logProgress(MetadataSyncManager.STAGE_ARTIST_DETAILS, artistIndex, artistTotal, "Artist details: " + name, LOG_INTERVAL_MEDIUM);
+                        if (artistIndex % 10 == 0 || artistIndex == artistTotal) {
+                            Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_ARTIST_DETAILS, artistIndex, artistTotal);
+                        }
+                    }
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    executor.shutdown();
                 }
             }
         }
@@ -101,21 +137,40 @@ public final class SubsonicSyncProvider {
         if (albums != null) {
             result.didWork = true;
             result.albums = albums;
-            int estimatedSongTotal = 0;
+            List<AlbumID3> albumItems = new ArrayList<>();
             for (AlbumID3 album : albums) {
+                if (album != null) albumItems.add(album);
+            }
+            int estimatedSongTotal = 0;
+            for (AlbumID3 album : albumItems) {
                 if (album != null && album.getSongCount() != null) {
                     estimatedSongTotal += Math.max(album.getSongCount(), 0);
                 }
             }
             Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_SONGS, 0, estimatedSongTotal > 0 ? estimatedSongTotal : -1);
-            int albumIndex = 0;
+            int albumTotal = albumItems.size();
             int processedTracks = 0;
-            for (AlbumID3 album : albums) {
-                if (album == null) continue;
-                albumIndex++;
-                if (album.getCoverArtId() != null) result.coverArtIds.add(album.getCoverArtId());
-                if (album.getId() != null) {
-                    List<Child> tracks = syncAlbumTracks(cacheRepository, album);
+            ExecutorService executor = Executors.newFixedThreadPool(PARALLELISM);
+            CompletionService<AlbumTracksResult> completion = new ExecutorCompletionService<>(executor);
+            for (AlbumID3 album : albumItems) {
+                completion.submit(() -> new AlbumTracksResult(album, syncAlbumTracks(cacheRepository, album)));
+            }
+            int albumIndex = 0;
+            try {
+                for (int i = 0; i < albumTotal; i++) {
+                    Future<AlbumTracksResult> future = completion.take();
+                    AlbumTracksResult resultItem;
+                    try {
+                        resultItem = future.get();
+                    } catch (Exception ex) {
+                        continue;
+                    }
+                    albumIndex++;
+                    AlbumID3 album = resultItem.album;
+                    if (album != null && album.getCoverArtId() != null) {
+                        result.coverArtIds.add(album.getCoverArtId());
+                    }
+                    List<Child> tracks = resultItem.tracks;
                     if (tracks != null) {
                         processedTracks += tracks.size();
                         for (Child track : tracks) {
@@ -129,28 +184,50 @@ public final class SubsonicSyncProvider {
                             }
                         }
                     }
+                    String name = album != null && album.getName() != null ? album.getName() : (album != null ? album.getId() : null);
+                    logProgress(MetadataSyncManager.STAGE_SONGS, albumIndex, albumTotal, "Album tracks: " + name, LOG_INTERVAL_MEDIUM);
+                    if (albumIndex % 10 == 0) {
+                        int total = estimatedSongTotal > 0 ? estimatedSongTotal : -1;
+                        Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_SONGS, processedTracks, total);
+                    }
                 }
-                String name = album.getName() != null ? album.getName() : album.getId();
-                logProgress(MetadataSyncManager.STAGE_SONGS, albumIndex, albums.size(), "Album tracks: " + name, LOG_INTERVAL_MEDIUM);
-                if (albumIndex % 10 == 0) {
-                    int total = estimatedSongTotal > 0 ? estimatedSongTotal : -1;
-                    Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_SONGS, processedTracks, total);
-                }
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            } finally {
+                executor.shutdown();
             }
             Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_SONGS, processedTracks, estimatedSongTotal > 0 ? estimatedSongTotal : -1);
 
-            int albumTotal = albums.size();
             Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_ALBUM_DETAILS, 0, albumTotal);
-            int albumDetailsIndex = 0;
-            for (AlbumID3 album : albums) {
-                if (album == null) continue;
-                AlbumInfo info = syncAlbumDetails(context, cacheRepository, album);
-                collectInfoUrls(info, result.coverArtUrls);
-                albumDetailsIndex++;
-                String name = album.getName() != null ? album.getName() : album.getId();
-                logProgress(MetadataSyncManager.STAGE_ALBUM_DETAILS, albumDetailsIndex, albumTotal, "Album details: " + name, LOG_INTERVAL_MEDIUM);
-                if (albumDetailsIndex % 10 == 0 || albumDetailsIndex == albumTotal) {
-                    Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_ALBUM_DETAILS, albumDetailsIndex, albumTotal);
+            if (albumTotal > 0) {
+                ExecutorService detailExecutor = Executors.newFixedThreadPool(PARALLELISM);
+                CompletionService<AlbumDetailsResult> detailCompletion = new ExecutorCompletionService<>(detailExecutor);
+                for (AlbumID3 album : albumItems) {
+                    detailCompletion.submit(() -> new AlbumDetailsResult(album, syncAlbumDetails(context, cacheRepository, album)));
+                }
+                int albumDetailsIndex = 0;
+                try {
+                    for (int i = 0; i < albumTotal; i++) {
+                        Future<AlbumDetailsResult> future = detailCompletion.take();
+                        AlbumDetailsResult resultItem;
+                        try {
+                            resultItem = future.get();
+                        } catch (Exception ex) {
+                            continue;
+                        }
+                        albumDetailsIndex++;
+                        AlbumID3 album = resultItem.album;
+                        collectInfoUrls(resultItem.info, result.coverArtUrls);
+                        String name = album != null && album.getName() != null ? album.getName() : (album != null ? album.getId() : null);
+                        logProgress(MetadataSyncManager.STAGE_ALBUM_DETAILS, albumDetailsIndex, albumTotal, "Album details: " + name, LOG_INTERVAL_MEDIUM);
+                        if (albumDetailsIndex % 10 == 0 || albumDetailsIndex == albumTotal) {
+                            Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_ALBUM_DETAILS, albumDetailsIndex, albumTotal);
+                        }
+                    }
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    detailExecutor.shutdown();
                 }
             }
             logSync(MetadataSyncManager.STAGE_ALBUM_DETAILS, "Album details cached (" + albumTotal + ")", true);
@@ -161,18 +238,31 @@ public final class SubsonicSyncProvider {
             logSync(MetadataSyncManager.STAGE_SONGS, "Songs cached (" + result.allSongs.size() + ")", true);
         }
 
-        searchIndexRepository.replaceSource(
-                SearchIndexUtil.SOURCE_SUBSONIC,
-                SearchIndexBuilder.buildFromSubsonic(result.artists, result.albums, new ArrayList<>(result.allSongs.values()), result.playlists)
-        );
-        Preferences.setMetadataSyncSubsonicLast(now);
-        Preferences.setMetadataSyncSubsonicFull(now);
-        String resolvedSignature = signature != null ? signature : fallbackSignature(result);
-        if (resolvedSignature != null) {
-            Preferences.setMetadataSyncSubsonicSignature(resolvedSignature);
+        boolean hasData = hasAnyData(result);
+        if (hasData) {
+            searchIndexRepository.replaceSource(
+                    SearchIndexUtil.SOURCE_SUBSONIC,
+                    SearchIndexBuilder.buildFromSubsonic(result.artists, result.albums, new ArrayList<>(result.allSongs.values()), result.playlists)
+            );
+            Preferences.setMetadataSyncSubsonicLast(now);
+            Preferences.setMetadataSyncSubsonicFull(now);
+            String resolvedSignature = signature != null ? signature : fallbackSignature(result);
+            if (resolvedSignature != null) {
+                Preferences.setMetadataSyncSubsonicSignature(resolvedSignature);
+            }
+        } else {
+            logSync(MetadataSyncManager.STAGE_PREPARING, "Subsonic sync returned empty; keeping previous cache", true);
         }
 
         return result;
+    }
+
+    private static boolean hasAnyData(Result result) {
+        if (result == null) return false;
+        if (result.playlists != null && !result.playlists.isEmpty()) return true;
+        if (result.artists != null && !result.artists.isEmpty()) return true;
+        if (result.albums != null && !result.albums.isEmpty()) return true;
+        return !result.allSongs.isEmpty();
     }
 
     private static List<Playlist> syncPlaylists(CacheRepository cacheRepository) {
@@ -180,8 +270,18 @@ public final class SubsonicSyncProvider {
             Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_PLAYLISTS, 0, -1);
             logSync(MetadataSyncManager.STAGE_PLAYLISTS, "Fetching playlists", false);
             Call<ApiResponse> call = App.getSubsonicClientInstance(false).getPlaylistClient().getPlaylists();
+            applyTimeout(call, NETWORK_TIMEOUT_SECONDS);
             Response<ApiResponse> response = call.execute();
-            if (!response.isSuccessful() || response.body() == null || response.body().getSubsonicResponse().getPlaylists() == null) {
+            if (!response.isSuccessful() || response.body() == null || response.body().getSubsonicResponse() == null) {
+                logSync(MetadataSyncManager.STAGE_PLAYLISTS, "Playlists fetch failed", true);
+                return null;
+            }
+            if (response.body().getSubsonicResponse().getError() != null) {
+                logSync(MetadataSyncManager.STAGE_PLAYLISTS, "Playlists error: " + response.body().getSubsonicResponse().getError().getMessage(), true);
+                return null;
+            }
+            if (response.body().getSubsonicResponse().getPlaylists() == null) {
+                logSync(MetadataSyncManager.STAGE_PLAYLISTS, "Playlists empty response", true);
                 return null;
             }
 
@@ -200,7 +300,8 @@ public final class SubsonicSyncProvider {
             }
             logSync(MetadataSyncManager.STAGE_PLAYLISTS, "Playlists cached (" + total + ")", true);
             return playlists;
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            logSync(MetadataSyncManager.STAGE_PLAYLISTS, "Playlists fetch failed (" + ex.getClass().getSimpleName() + ")", true);
             return null;
         }
     }
@@ -209,13 +310,16 @@ public final class SubsonicSyncProvider {
         if (playlistId == null || playlistId.isEmpty()) return;
         try {
             Call<ApiResponse> call = App.getSubsonicClientInstance(false).getPlaylistClient().getPlaylist(playlistId);
+            applyTimeout(call, NETWORK_TIMEOUT_SECONDS);
             Response<ApiResponse> response = call.execute();
             if (!response.isSuccessful() || response.body() == null || response.body().getSubsonicResponse().getPlaylist() == null) {
+                logSync(MetadataSyncManager.STAGE_PLAYLISTS, "Playlist songs fetch failed (" + playlistId + ")", true);
                 return;
             }
             List<Child> songs = response.body().getSubsonicResponse().getPlaylist().getEntries();
             cacheRepository.save("playlist_songs_" + playlistId, songs);
         } catch (Exception ignored) {
+            logSync(MetadataSyncManager.STAGE_PLAYLISTS, "Playlist songs fetch failed (" + playlistId + ")", true);
         }
     }
 
@@ -224,8 +328,18 @@ public final class SubsonicSyncProvider {
             Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_ARTISTS, 0, -1);
             logSync(MetadataSyncManager.STAGE_ARTISTS, "Fetching artists", false);
             Call<ApiResponse> call = App.getSubsonicClientInstance(false).getBrowsingClient().getArtists();
+            applyTimeout(call, NETWORK_TIMEOUT_SECONDS);
             Response<ApiResponse> response = call.execute();
-            if (!response.isSuccessful() || response.body() == null || response.body().getSubsonicResponse().getArtists() == null) {
+            if (!response.isSuccessful() || response.body() == null || response.body().getSubsonicResponse() == null) {
+                logSync(MetadataSyncManager.STAGE_ARTISTS, "Artists fetch failed", true);
+                return null;
+            }
+            if (response.body().getSubsonicResponse().getError() != null) {
+                logSync(MetadataSyncManager.STAGE_ARTISTS, "Artists error: " + response.body().getSubsonicResponse().getError().getMessage(), true);
+                return null;
+            }
+            if (response.body().getSubsonicResponse().getArtists() == null) {
+                logSync(MetadataSyncManager.STAGE_ARTISTS, "Artists empty response", true);
                 return null;
             }
 
@@ -242,7 +356,8 @@ public final class SubsonicSyncProvider {
             Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_ARTISTS, artists.size(), artists.size());
             logSync(MetadataSyncManager.STAGE_ARTISTS, "Artists cached (" + artists.size() + ")", true);
             return artists;
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            logSync(MetadataSyncManager.STAGE_ARTISTS, "Artists fetch failed (" + ex.getClass().getSimpleName() + ")", true);
             return null;
         }
     }
@@ -252,8 +367,18 @@ public final class SubsonicSyncProvider {
             Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_GENRES, 0, -1);
             logSync(MetadataSyncManager.STAGE_GENRES, "Fetching genres", false);
             Call<ApiResponse> call = App.getSubsonicClientInstance(false).getBrowsingClient().getGenres();
+            applyTimeout(call, NETWORK_TIMEOUT_SECONDS);
             Response<ApiResponse> response = call.execute();
-            if (!response.isSuccessful() || response.body() == null || response.body().getSubsonicResponse().getGenres() == null) {
+            if (!response.isSuccessful() || response.body() == null || response.body().getSubsonicResponse() == null) {
+                logSync(MetadataSyncManager.STAGE_GENRES, "Genres fetch failed", true);
+                return;
+            }
+            if (response.body().getSubsonicResponse().getError() != null) {
+                logSync(MetadataSyncManager.STAGE_GENRES, "Genres error: " + response.body().getSubsonicResponse().getError().getMessage(), true);
+                return;
+            }
+            if (response.body().getSubsonicResponse().getGenres() == null) {
+                logSync(MetadataSyncManager.STAGE_GENRES, "Genres empty response", true);
                 return;
             }
             List<Genre> genres = response.body().getSubsonicResponse().getGenres().getGenres();
@@ -261,7 +386,8 @@ public final class SubsonicSyncProvider {
             int total = genres == null ? 0 : genres.size();
             Preferences.setMetadataSyncProgress(MetadataSyncManager.STAGE_GENRES, total, total);
             logSync(MetadataSyncManager.STAGE_GENRES, "Genres cached (" + total + ")", true);
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            logSync(MetadataSyncManager.STAGE_GENRES, "Genres fetch failed (" + ex.getClass().getSimpleName() + ")", true);
         }
     }
 
@@ -277,8 +403,18 @@ public final class SubsonicSyncProvider {
                 Call<ApiResponse> call = App.getSubsonicClientInstance(false)
                         .getAlbumSongListClient()
                         .getAlbumList2("alphabeticalByName", ALBUM_PAGE_SIZE, offset, null, null);
+                applyTimeout(call, NETWORK_TIMEOUT_SECONDS);
                 Response<ApiResponse> response = call.execute();
-                if (!response.isSuccessful() || response.body() == null || response.body().getSubsonicResponse().getAlbumList2() == null) {
+                if (!response.isSuccessful() || response.body() == null || response.body().getSubsonicResponse() == null) {
+                    logSync(MetadataSyncManager.STAGE_ALBUMS, "Albums fetch failed", true);
+                    break;
+                }
+                if (response.body().getSubsonicResponse().getError() != null) {
+                    logSync(MetadataSyncManager.STAGE_ALBUMS, "Albums error: " + response.body().getSubsonicResponse().getError().getMessage(), true);
+                    break;
+                }
+                if (response.body().getSubsonicResponse().getAlbumList2() == null) {
+                    logSync(MetadataSyncManager.STAGE_ALBUMS, "Albums empty response", true);
                     break;
                 }
 
@@ -292,7 +428,8 @@ public final class SubsonicSyncProvider {
 
                 offset += page.size();
                 if (page.size() < ALBUM_PAGE_SIZE) break;
-            } catch (Exception ignored) {
+            } catch (Exception ex) {
+                logSync(MetadataSyncManager.STAGE_ALBUMS, "Albums fetch failed (" + ex.getClass().getSimpleName() + ")", true);
                 break;
             }
         }
@@ -308,7 +445,7 @@ public final class SubsonicSyncProvider {
         String albumId = album.getId();
         try {
             Call<ApiResponse> call = App.getSubsonicClientInstance(false).getBrowsingClient().getAlbum(albumId);
-            call.timeout().timeout(30, TimeUnit.SECONDS);
+            applyTimeout(call, ALBUM_TRACK_TIMEOUT_SECONDS);
             Response<ApiResponse> response = call.execute();
             if (!response.isSuccessful() || response.body() == null || response.body().getSubsonicResponse().getAlbum() == null) {
                 return null;
@@ -330,6 +467,7 @@ public final class SubsonicSyncProvider {
         if (artist == null || artist.getId() == null || artist.getId().isEmpty()) return null;
         try {
             Call<ApiResponse> call = App.getSubsonicClientInstance(false).getBrowsingClient().getArtistInfo2(artist.getId());
+            applyTimeout(call, NETWORK_TIMEOUT_SECONDS);
             Response<ApiResponse> response = call.execute();
             if (!response.isSuccessful() || response.body() == null || response.body().getSubsonicResponse().getArtistInfo2() == null) {
                 return null;
@@ -347,6 +485,7 @@ public final class SubsonicSyncProvider {
         if (album == null || album.getId() == null || album.getId().isEmpty()) return null;
         try {
             Call<ApiResponse> call = App.getSubsonicClientInstance(false).getBrowsingClient().getAlbumInfo2(album.getId());
+            applyTimeout(call, NETWORK_TIMEOUT_SECONDS);
             Response<ApiResponse> response = call.execute();
             if (!response.isSuccessful() || response.body() == null || response.body().getSubsonicResponse().getAlbumInfo() == null) {
                 return null;
@@ -357,6 +496,36 @@ public final class SubsonicSyncProvider {
             return info;
         } catch (Exception ignored) {
             return null;
+        }
+    }
+
+    private static final class ArtistDetailsResult {
+        final ArtistID3 artist;
+        final ArtistInfo2 info;
+
+        ArtistDetailsResult(ArtistID3 artist, ArtistInfo2 info) {
+            this.artist = artist;
+            this.info = info;
+        }
+    }
+
+    private static final class AlbumTracksResult {
+        final AlbumID3 album;
+        final List<Child> tracks;
+
+        AlbumTracksResult(AlbumID3 album, List<Child> tracks) {
+            this.album = album;
+            this.tracks = tracks;
+        }
+    }
+
+    private static final class AlbumDetailsResult {
+        final AlbumID3 album;
+        final AlbumInfo info;
+
+        AlbumDetailsResult(AlbumID3 album, AlbumInfo info) {
+            this.album = album;
+            this.info = info;
         }
     }
 
@@ -397,16 +566,33 @@ public final class SubsonicSyncProvider {
 
     private static String fetchLibrarySignature() {
         if (OfflinePolicy.isOffline()) return null;
+        Call<ApiResponse> call = App.getSubsonicClientInstance(false).getMediaLibraryScanningClient().getScanStatus();
+        applyTimeout(call, SIGNATURE_TIMEOUT_SECONDS);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
         try {
-            Call<ApiResponse> call = App.getSubsonicClientInstance(false).getMediaLibraryScanningClient().getScanStatus();
-            Response<ApiResponse> response = call.execute();
+            Future<Response<ApiResponse>> future = executor.submit(call::execute);
+            Response<ApiResponse> response = future.get(SIGNATURE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             if (!response.isSuccessful() || response.body() == null) return null;
             if (response.body().getSubsonicResponse() == null) return null;
             ScanStatus status = response.body().getSubsonicResponse().getScanStatus();
             if (status == null || status.getCount() == null) return null;
             return String.valueOf(status.getCount());
+        } catch (TimeoutException ex) {
+            logSync(MetadataSyncManager.STAGE_PREPARING, "Subsonic scan status timed out", false);
+            call.cancel();
+            return null;
         } catch (Exception ignored) {
             return null;
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static void applyTimeout(Call<?> call, int seconds) {
+        if (call == null) return;
+        try {
+            call.timeout().timeout(seconds, TimeUnit.SECONDS);
+        } catch (Exception ignored) {
         }
     }
 
