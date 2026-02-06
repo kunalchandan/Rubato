@@ -14,3 +14,15 @@
 .cxx
 /.idea/
 .credentials
+.gradle-home/
+.kotlin/
+.tmp/
+/tmp_*.txt
+/tmp_*.csv
+/tmp_*.log
+/tools/*.png
+/tools/*.apk
+/tools/uidump*.xml
+/tools/*prefs*.xml
+/tools/gfxinfo_*.txt
+/tools/logcat_*.txt
