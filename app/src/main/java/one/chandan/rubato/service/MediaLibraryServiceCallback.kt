@@ -16,20 +16,20 @@ import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
 import one.chandan.rubato.BuildConfig
 import one.chandan.rubato.R
-import one.chandan.rubato.repository.AutomotiveRepository
+import one.chandan.rubato.repository.AutoLibraryRepository
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 
 open class MediaLibrarySessionCallback(
     context: Context,
-    automotiveRepository: AutomotiveRepository
+    autoLibraryRepository: AutoLibraryRepository
 ) :
     MediaLibraryService.MediaLibrarySession.Callback {
     private val tag = "MediaSessionCallback"
 
     init {
-        MediaBrowserTree.initialize(automotiveRepository)
+        MediaBrowserTree.initialize(autoLibraryRepository)
     }
 
     private val customLayoutCommandButtons: List<CommandButton> = listOf(
@@ -60,6 +60,13 @@ open class MediaLibrarySessionCallback(
             }.build()
 
     @OptIn(UnstableApi::class)
+    private val automotiveSessionCommands =
+        mediaNotificationSessionCommands.buildUpon()
+            .remove(SessionCommand.COMMAND_CODE_LIBRARY_SEARCH)
+            .remove(SessionCommand.COMMAND_CODE_LIBRARY_GET_SEARCH_RESULT)
+            .build()
+
+    @OptIn(UnstableApi::class)
     override fun onConnect(
         session: MediaSession, controller: MediaSession.ControllerInfo
     ): MediaSession.ConnectionResult {
@@ -70,15 +77,16 @@ open class MediaLibrarySessionCallback(
                     "autoComp=${session.isAutoCompanionController(controller)} notif=${session.isMediaNotificationController(controller)}"
             )
         }
-        if (session.isMediaNotificationController(controller) || session.isAutomotiveController(
-                controller
-            ) || session.isAutoCompanionController(controller)
-        ) {
+        val isAutomotiveController =
+            session.isAutomotiveController(controller) || session.isAutoCompanionController(controller)
+        if (session.isMediaNotificationController(controller) || isAutomotiveController) {
             val customLayout =
                 customLayoutCommandButtons[if (session.player.shuffleModeEnabled) 1 else 0]
+            val sessionCommands =
+                if (isAutomotiveController) automotiveSessionCommands else mediaNotificationSessionCommands
 
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
-                .setAvailableSessionCommands(mediaNotificationSessionCommands)
+                .setAvailableSessionCommands(sessionCommands)
                 .setCustomLayout(ImmutableList.of(customLayout)).build()
         }
 
@@ -191,11 +199,7 @@ open class MediaLibrarySessionCallback(
         controller: MediaSession.ControllerInfo,
         mediaItems: List<MediaItem>
     ): ListenableFuture<List<MediaItem>> {
-        return super.onAddMediaItems(
-            mediaSession,
-            controller,
-            MediaBrowserTree.getItems(mediaItems)
-        )
+        return MediaBrowserTree.resolveMediaItems(mediaItems)
     }
 
     override fun onSearch(
