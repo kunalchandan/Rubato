@@ -11,6 +11,9 @@ Last updated: 2026-02-12
 - Added collection utilities to simplify safe list handling in viewmodels.
 - Updated build configuration (plugins DSL, lint baseline, ABI splits, WorkManager/security deps).
 - Added/updated automated tests covering genres, local sources, telemetry export, and visualizer settings.
+- Updated README branding and distribution links for Rubato.
+- Removed outdated docs as part of the re-architecture cleanup.
+- Refreshed store metadata and privacy policy content.
 
 ## Recent updates (2026-02-06)
 - Android Auto: removed the top-level "Made for you" browse page and disabled AA search commands to eliminate the split-screen "For you / What do you want to listen to?" surface.
