@@ -14,6 +14,7 @@ import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.subsonic.models.Playlist;
 import one.chandan.rubato.util.SearchIndexBuilder;
 import one.chandan.rubato.util.SearchIndexUtil;
+import one.chandan.rubato.util.Preferences;
 
 import com.google.gson.GsonBuilder;
 
@@ -68,6 +69,25 @@ public class JellyfinLibraryRepository {
         );
     }
 
+    @Nullable
+    public LibrarySignature fetchSignature(JellyfinServer server) {
+        if (server == null) return null;
+        JellyfinApi api = createApi(server.getAddress());
+        Integer artists = fetchCount(api, server, "MusicArtist");
+        Integer albums = fetchCount(api, server, "MusicAlbum");
+        Integer songs = fetchCount(api, server, "Audio");
+        Integer playlists = fetchCount(api, server, "Playlist,MusicPlaylist");
+        if (artists == null && albums == null && songs == null && playlists == null) {
+            return null;
+        }
+        return new LibrarySignature(
+                artists != null ? artists : 0,
+                albums != null ? albums : 0,
+                songs != null ? songs : 0,
+                playlists != null ? playlists : 0
+        );
+    }
+
     private List<JellyfinItem> fetchAllItems(JellyfinApi api, JellyfinServer server, String includeItemTypes) {
         if (api == null || server == null) return Collections.emptyList();
         List<JellyfinItem> items = new ArrayList<>();
@@ -104,6 +124,30 @@ public class JellyfinLibraryRepository {
             }
         }
         return items;
+    }
+
+    private Integer fetchCount(JellyfinApi api, JellyfinServer server, String includeItemTypes) {
+        if (api == null || server == null) return null;
+        try {
+            Response<JellyfinItemsResponse> response = api.getItems(
+                    server.getUserId(),
+                    server.getLibraryId(),
+                    includeItemTypes,
+                    true,
+                    0,
+                    1,
+                    "SortName",
+                    "Ascending",
+                    null,
+                    server.getAccessToken()
+            ).execute();
+            if (!response.isSuccessful() || response.body() == null) {
+                return null;
+            }
+            return response.body().getTotalRecordCount();
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private List<JellyfinItem> fetchPlaylistItems(JellyfinApi api, JellyfinServer server, String playlistId) {
@@ -265,6 +309,27 @@ public class JellyfinLibraryRepository {
             return "https://";
         }
         String trimmed = input.trim();
+        if (trimmed.startsWith("http://") && !Preferences.isLowScurity()) {
+            trimmed = "https://" + trimmed.substring("http://".length());
+        }
         return trimmed.endsWith("/") ? trimmed : trimmed + "/";
+    }
+
+    public static final class LibrarySignature {
+        private final int artists;
+        private final int albums;
+        private final int songs;
+        private final int playlists;
+
+        public LibrarySignature(int artists, int albums, int songs, int playlists) {
+            this.artists = artists;
+            this.albums = albums;
+            this.songs = songs;
+            this.playlists = playlists;
+        }
+
+        public String asKey() {
+            return artists + ":" + albums + ":" + songs + ":" + playlists;
+        }
     }
 }

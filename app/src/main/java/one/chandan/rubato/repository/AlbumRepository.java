@@ -12,10 +12,15 @@ import one.chandan.rubato.subsonic.models.AlbumID3;
 import one.chandan.rubato.subsonic.models.AlbumInfo;
 import one.chandan.rubato.subsonic.models.ArtistID3;
 import one.chandan.rubato.subsonic.models.Child;
+import one.chandan.rubato.subsonic.models.SubsonicResponse;
+import one.chandan.rubato.util.JellyfinTagUtil;
 import one.chandan.rubato.util.LibraryDedupeUtil;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.SearchIndexUtil;
+import one.chandan.rubato.util.Constants;
+import one.chandan.rubato.model.SearchSongLite;
 import com.google.gson.reflect.TypeToken;
+import android.text.TextUtils;
 
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -31,14 +36,15 @@ import retrofit2.Response;
 public class AlbumRepository {
     private final CacheRepository cacheRepository = new CacheRepository();
     private final JellyfinCacheRepository jellyfinCacheRepository = new JellyfinCacheRepository();
+    private final LibrarySearchIndexRepository searchIndexRepository = new LibrarySearchIndexRepository();
     public MutableLiveData<List<AlbumID3>> getAlbums(String type, int size, Integer fromYear, Integer toYear) {
         MutableLiveData<List<AlbumID3>> listLiveAlbums = new MutableLiveData<>(new ArrayList<>());
         String cacheKey = "albums_" + type + "_" + size + "_" + fromYear + "_" + toYear;
 
         loadCachedAlbumsFromAll(type, size, fromYear, toYear, listLiveAlbums);
-        loadCachedAlbums(cacheKey, listLiveAlbums);
+        loadCachedAlbums(cacheKey, type, size, listLiveAlbums);
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedAlbumsFromAll(type, size, fromYear, toYear, listLiveAlbums);
             return listLiveAlbums;
         }
@@ -56,12 +62,12 @@ public class AlbumRepository {
                             return;
                         }
 
-                        loadCachedAlbums(cacheKey, listLiveAlbums);
+                        loadCachedAlbums(cacheKey, type, size, listLiveAlbums);
                     }
 
                     @Override
                     public void onFailure(@NonNull Call<ApiResponse> call, @NonNull Throwable t) {
-                        loadCachedAlbums(cacheKey, listLiveAlbums);
+                        loadCachedAlbums(cacheKey, type, size, listLiveAlbums);
 
                     }
                 });
@@ -75,7 +81,7 @@ public class AlbumRepository {
 
         loadCachedStarredAlbums(cacheKey, starredAlbums, random, size);
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             return starredAlbums;
         }
 
@@ -85,18 +91,28 @@ public class AlbumRepository {
                 .enqueue(new Callback<ApiResponse>() {
                     @Override
                     public void onResponse(@NonNull Call<ApiResponse> call, @NonNull Response<ApiResponse> response) {
-                        if (response.isSuccessful() && response.body() != null && response.body().getSubsonicResponse().getStarred2() != null) {
-                            List<AlbumID3> albums = response.body().getSubsonicResponse().getStarred2().getAlbums();
+                        if (response.isSuccessful() && response.body() != null) {
+                            SubsonicResponse subsonicResponse = response.body().getSubsonicResponse();
+                            List<AlbumID3> albums = null;
+
+                            if (subsonicResponse != null && subsonicResponse.getStarred2() != null) {
+                                albums = subsonicResponse.getStarred2().getAlbums();
+                            }
+
+                            if (albums == null && subsonicResponse != null && subsonicResponse.getStarred() != null) {
+                                albums = mapLegacyStarredAlbums(subsonicResponse.getStarred().getAlbums());
+                            }
 
                             if (albums != null) {
                                 if (random) {
                                     Collections.shuffle(albums);
-                                    starredAlbums.setValue(albums.subList(0, Math.min(size, albums.size())));
+                                    int limit = Math.min(size, albums.size());
+                                    starredAlbums.setValue(new ArrayList<>(albums.subList(0, limit)));
                                 } else {
                                     starredAlbums.setValue(albums);
                                 }
+                                cacheRepository.save(cacheKey, albums);
                             }
-                            cacheRepository.save(cacheKey, albums);
                         }
                     }
 
@@ -110,6 +126,7 @@ public class AlbumRepository {
     }
 
     public void setRating(String id, int rating) {
+        if (OfflinePolicy.isOffline()) return;
         App.getSubsonicClientInstance(false)
                 .getMediaAnnotationClient()
                 .setRating(id, rating)
@@ -127,21 +144,52 @@ public class AlbumRepository {
     }
 
     public MutableLiveData<List<Child>> getAlbumTracks(String id) {
+        return getAlbumTracks(id, null, null);
+    }
+
+    public MutableLiveData<List<Child>> getAlbumTracks(AlbumID3 album) {
+        if (album == null) {
+            return new MutableLiveData<>(new ArrayList<>());
+        }
+        return getAlbumTracks(album.getId(), album.getName(), album.getArtist());
+    }
+
+    public MutableLiveData<List<Child>> getAlbumTracks(String id, String albumName, String artistName) {
         MutableLiveData<List<Child>> albumTracks = new MutableLiveData<>();
-        String cacheKey = "album_tracks_" + id;
+        String cacheKey = id != null ? "album_tracks_" + id : null;
 
-        if (SearchIndexUtil.isJellyfinTagged(id)) {
-            jellyfinCacheRepository.loadSongsForAlbum(id, albumTracks::postValue);
+        if (id != null && SearchIndexUtil.isJellyfinTagged(id)) {
+            jellyfinCacheRepository.loadSongsForAlbum(id, songs -> {
+                if (songs != null && !songs.isEmpty()) {
+                    albumTracks.postValue(songs);
+                    return;
+                }
+                loadCachedAlbumTracksByIdOrMetadata(id, albumName, artistName, albumTracks);
+            });
             return albumTracks;
         }
 
-        if (LocalMusicRepository.isLocalAlbumId(id)) {
-            LocalMusicRepository.getLocalAlbumSongs(App.getContext(), id, albumTracks::postValue);
+        if (id != null && LocalMusicRepository.isLocalAlbumId(id)) {
+            LocalMusicRepository.getLocalAlbumSongs(App.getContext(), id, songs -> {
+                if (songs != null && !songs.isEmpty()) {
+                    albumTracks.postValue(songs);
+                    return;
+                }
+                loadLocalAlbumTracksByMetadata(id, albumName, artistName, albumTracks);
+            });
             return albumTracks;
         }
 
-        if (NetworkUtil.isOffline()) {
-            loadCachedAlbumTracks(cacheKey, albumTracks);
+        if (OfflinePolicy.isOffline()) {
+            if (cacheKey != null) {
+                loadCachedAlbumTracks(cacheKey, albumTracks);
+            }
+            loadLocalAlbumTracksByMetadata(id, albumName, artistName, albumTracks);
+            return albumTracks;
+        }
+
+        if (id == null || id.trim().isEmpty()) {
+            loadLocalAlbumTracksByMetadata(id, albumName, artistName, albumTracks);
             return albumTracks;
         }
 
@@ -159,18 +207,259 @@ public class AlbumRepository {
                             }
                         }
 
-                        albumTracks.setValue(tracks);
-                        cacheRepository.save(cacheKey, tracks);
+                        if (!tracks.isEmpty()) {
+                            albumTracks.setValue(tracks);
+                        } else {
+                            loadRemoteAlbumTracksBySearch(id, albumName, artistName, albumTracks, () ->
+                                    loadLocalAlbumTracksByMetadata(id, albumName, artistName, albumTracks));
+                        }
+                        if (cacheKey != null) {
+                            cacheRepository.save(cacheKey, tracks);
+                        }
                     }
 
                     @Override
                     public void onFailure(@NonNull Call<ApiResponse> call, @NonNull Throwable t) {
-                        loadCachedAlbumTracks(cacheKey, albumTracks);
-
+                        if (cacheKey != null) {
+                            loadCachedAlbumTracks(cacheKey, albumTracks);
+                        }
+                        loadRemoteAlbumTracksBySearch(id, albumName, artistName, albumTracks, () ->
+                                loadLocalAlbumTracksByMetadata(id, albumName, artistName, albumTracks));
                     }
                 });
 
         return albumTracks;
+    }
+
+    private void loadLocalAlbumTracksByMetadata(String albumId, String albumName, String artistName, MutableLiveData<List<Child>> albumTracks) {
+        if (TextUtils.isEmpty(albumName)) {
+            if (!TextUtils.isEmpty(albumId)) {
+                loadCachedAlbumTracksByIdOrMetadata(albumId, null, artistName, albumTracks);
+                return;
+            }
+            postEmptyIfNeeded(albumTracks);
+            return;
+        }
+        String effectiveArtist = isGenericArtistName(artistName) ? null : artistName;
+        LocalMusicRepository.getLocalAlbumSongsByMetadata(App.getContext(), albumName, effectiveArtist, songs -> {
+            if (songs != null && !songs.isEmpty()) {
+                postIfEmpty(albumTracks, songs);
+                return;
+            }
+            LocalMusicRepository.getLocalAlbumSongsByMetadata(App.getContext(), albumName, null, fallback -> {
+                if (fallback != null && !fallback.isEmpty()) {
+                    postIfEmpty(albumTracks, fallback);
+                    return;
+                }
+                loadCachedAlbumTracksByIdOrMetadata(albumId, albumName, effectiveArtist, albumTracks);
+            });
+        });
+    }
+
+    private void postIfEmpty(MutableLiveData<List<Child>> target, List<Child> songs) {
+        if (target == null) return;
+        List<Child> current = target.getValue();
+        if (current != null && !current.isEmpty()) {
+            return;
+        }
+        target.postValue(songs);
+    }
+
+    private void postEmptyIfNeeded(MutableLiveData<List<Child>> target) {
+        if (target == null) return;
+        List<Child> current = target.getValue();
+        if (current != null && !current.isEmpty()) {
+            return;
+        }
+        target.postValue(new ArrayList<>());
+    }
+
+    private void loadCachedAlbumTracksByIdOrMetadata(String albumId, String albumName, String artistName, MutableLiveData<List<Child>> albumTracks) {
+        Type type = new TypeToken<List<Child>>() {
+        }.getType();
+        String albumKey = normalizeMatchKey(albumName);
+        String artistKey = normalizeMatchKey(artistName);
+        boolean matchArtist = !TextUtils.isEmpty(artistKey);
+        String rawAlbumId = JellyfinTagUtil.toRaw(albumId);
+        cacheRepository.loadOrNull("songs_all", type, new CacheRepository.CacheResult<List<Child>>() {
+            @Override
+            public void onLoaded(List<Child> cached) {
+                List<Child> cachedMatches = filterSongsByIdOrMetadata(cached, albumId, rawAlbumId, albumKey, artistKey, matchArtist);
+                if (!cachedMatches.isEmpty()) {
+                    postIfEmpty(albumTracks, cachedMatches);
+                    return;
+                }
+                if (matchArtist) {
+                    List<Child> relaxed = filterSongsByMetadata(cached, albumKey, "", false);
+                    if (!relaxed.isEmpty()) {
+                        postIfEmpty(albumTracks, relaxed);
+                        return;
+                    }
+                }
+                jellyfinCacheRepository.loadAllSongs(jellySongs -> {
+                    List<Child> jellyMatches = filterSongsByIdOrMetadata(jellySongs, albumId, rawAlbumId, albumKey, artistKey, matchArtist);
+                    if (!jellyMatches.isEmpty()) {
+                        postIfEmpty(albumTracks, jellyMatches);
+                        return;
+                    }
+                    if (matchArtist) {
+                        List<Child> relaxed = filterSongsByMetadata(jellySongs, albumKey, "", false);
+                        if (!relaxed.isEmpty()) {
+                            postIfEmpty(albumTracks, relaxed);
+                            return;
+                        }
+                    }
+                    loadIndexAlbumTracks(albumId, albumName, artistName, albumTracks);
+                });
+            }
+        });
+    }
+
+    private void loadIndexAlbumTracks(String albumId, String albumName, String artistName, MutableLiveData<List<Child>> albumTracks) {
+        searchIndexRepository.getSongsByAlbum(albumId, albumName, artistName, entries -> {
+            List<Child> mapped = mapSearchSongs(entries);
+            if (!mapped.isEmpty()) {
+                postIfEmpty(albumTracks, mapped);
+                return;
+            }
+            postEmptyIfNeeded(albumTracks);
+        });
+    }
+
+    private void loadRemoteAlbumTracksBySearch(String albumId,
+                                               String albumName,
+                                               String artistName,
+                                               MutableLiveData<List<Child>> albumTracks,
+                                               Runnable onEmpty) {
+        if (OfflinePolicy.isOffline()) {
+            if (onEmpty != null) onEmpty.run();
+            return;
+        }
+        String query = albumName != null ? albumName.trim() : "";
+        if (query.isEmpty()) {
+            if (onEmpty != null) onEmpty.run();
+            return;
+        }
+        if (artistName != null && !artistName.trim().isEmpty()) {
+            query = query + " " + artistName.trim();
+        }
+        String albumKey = normalizeMatchKey(albumName);
+        String artistKey = normalizeMatchKey(artistName);
+        boolean matchArtist = !TextUtils.isEmpty(artistKey);
+        String rawAlbumId = JellyfinTagUtil.toRaw(albumId);
+        App.getSubsonicClientInstance(false)
+                .getSearchingClient()
+                .search3(query, 200, 0, 0)
+                .enqueue(new Callback<ApiResponse>() {
+                    @Override
+                    public void onResponse(@NonNull Call<ApiResponse> call, @NonNull Response<ApiResponse> response) {
+                        List<Child> candidates = new ArrayList<>();
+                        if (response.isSuccessful() && response.body() != null
+                                && response.body().getSubsonicResponse().getSearchResult3() != null
+                                && response.body().getSubsonicResponse().getSearchResult3().getSongs() != null) {
+                            candidates.addAll(response.body().getSubsonicResponse().getSearchResult3().getSongs());
+                        }
+                        List<Child> filtered = filterSongsByIdOrMetadata(candidates, albumId, rawAlbumId, albumKey, artistKey, matchArtist);
+                        if (!filtered.isEmpty()) {
+                            postIfEmpty(albumTracks, filtered);
+                            return;
+                        }
+                        if (onEmpty != null) onEmpty.run();
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull Call<ApiResponse> call, @NonNull Throwable t) {
+                        if (onEmpty != null) onEmpty.run();
+                    }
+                });
+    }
+
+    private List<Child> mapSearchSongs(List<SearchSongLite> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<Child> mapped = new ArrayList<>();
+        for (SearchSongLite entry : entries) {
+            if (entry == null) continue;
+            if (SearchIndexUtil.SOURCE_LOCAL.equals(entry.getSource())) {
+                continue;
+            }
+            String id = entry.getItemId();
+            if (id == null || id.trim().isEmpty()) {
+                continue;
+            }
+            Child song = new Child(id);
+            song.setTitle(entry.getTitle());
+            song.setArtist(entry.getArtist());
+            song.setAlbum(entry.getAlbum());
+            song.setAlbumId(entry.getAlbumId());
+            song.setArtistId(entry.getArtistId());
+            song.setCoverArtId(entry.getCoverArt());
+            song.setType(Constants.MEDIA_TYPE_MUSIC);
+            mapped.add(song);
+        }
+        return LibraryDedupeUtil.dedupeSongsBySignature(mapped);
+    }
+
+    private List<Child> filterSongsByIdOrMetadata(List<Child> songs,
+                                                  String albumId,
+                                                  String rawAlbumId,
+                                                  String albumKey,
+                                                  String artistKey,
+                                                  boolean matchArtist) {
+        if (songs == null || songs.isEmpty()) {
+            return new ArrayList<>();
+        }
+        if (!TextUtils.isEmpty(albumId) || !TextUtils.isEmpty(rawAlbumId)) {
+            List<Child> byId = new ArrayList<>();
+            for (Child song : songs) {
+                if (song == null) continue;
+                String candidate = song.getAlbumId();
+                if (candidate == null) continue;
+                if (!TextUtils.isEmpty(albumId) && albumId.equals(candidate)) {
+                    byId.add(song);
+                    continue;
+                }
+                if (!TextUtils.isEmpty(rawAlbumId) && rawAlbumId.equals(candidate)) {
+                    byId.add(song);
+                }
+            }
+            if (!byId.isEmpty()) {
+                return LibraryDedupeUtil.dedupeSongsBySignature(byId);
+            }
+        }
+        return filterSongsByMetadata(songs, albumKey, artistKey, matchArtist);
+    }
+
+    private List<Child> filterSongsByMetadata(List<Child> songs, String albumKey, String artistKey, boolean matchArtist) {
+        if (songs == null || songs.isEmpty() || TextUtils.isEmpty(albumKey)) {
+            return new ArrayList<>();
+        }
+        List<Child> filtered = new ArrayList<>();
+        for (Child song : songs) {
+            if (song == null) continue;
+            String candidateAlbum = normalizeMatchKey(song.getAlbum());
+            if (!albumKey.equals(candidateAlbum)) continue;
+            if (matchArtist) {
+                String candidateArtist = normalizeMatchKey(song.getArtist());
+                if (!artistKey.equals(candidateArtist)) continue;
+            }
+            filtered.add(song);
+        }
+        return LibraryDedupeUtil.dedupeSongsBySignature(filtered);
+    }
+
+    private String normalizeMatchKey(String value) {
+        if (value == null) return "";
+        String normalized = SearchIndexUtil.normalize(value);
+        if (normalized.isEmpty()) return "";
+        return normalized.replaceAll("[^a-z0-9 ]", "").trim();
+    }
+
+    private boolean isGenericArtistName(String artistName) {
+        if (TextUtils.isEmpty(artistName)) return true;
+        String normalized = SearchIndexUtil.normalize(artistName);
+        return "various artists".equals(normalized) || "various".equals(normalized) || "va".equals(normalized);
     }
 
     public MutableLiveData<List<AlbumID3>> getArtistAlbums(ArtistID3 artist) {
@@ -189,7 +478,7 @@ public class AlbumRepository {
             return artistsAlbum;
         }
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedArtistAlbumsFromAll(artistId, artistsAlbum);
             mergeJellyfinArtistAlbums(artistName, artistsAlbum);
             return artistsAlbum;
@@ -240,7 +529,7 @@ public class AlbumRepository {
             return album;
         }
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedAlbum(cacheKey, album);
             loadCachedAlbumFromAll(id, album);
             return album;
@@ -286,7 +575,7 @@ public class AlbumRepository {
             return albumInfo;
         }
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedAlbumInfo(cacheKey, albumInfo);
             return albumInfo;
         }
@@ -347,7 +636,7 @@ public class AlbumRepository {
     public MutableLiveData<List<Integer>> getDecades() {
         MutableLiveData<List<Integer>> decades = new MutableLiveData<>();
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedDecadesFromAll(decades);
             return decades;
         }
@@ -421,17 +710,24 @@ public class AlbumRepository {
                 });
     }
 
-    private void loadCachedAlbums(String cacheKey, MutableLiveData<List<AlbumID3>> listLiveAlbums) {
+    private void loadCachedAlbums(String cacheKey, String type, int size, MutableLiveData<List<AlbumID3>> listLiveAlbums) {
         List<AlbumID3> current = listLiveAlbums.getValue();
         if (current != null && !current.isEmpty()) {
             return;
         }
-        Type type = new TypeToken<List<AlbumID3>>() {
+        Type typeToken = new TypeToken<List<AlbumID3>>() {
         }.getType();
-        cacheRepository.load(cacheKey, type, new CacheRepository.CacheResult<List<AlbumID3>>() {
+        cacheRepository.load(cacheKey, typeToken, new CacheRepository.CacheResult<List<AlbumID3>>() {
             @Override
             public void onLoaded(List<AlbumID3> albums) {
-                LocalMusicRepository.appendLocalAlbums(App.getContext(), albums, listLiveAlbums::postValue);
+                LocalMusicRepository.appendLocalAlbums(App.getContext(), albums, merged -> {
+                    List<AlbumID3> ordered = merged != null ? new ArrayList<>(merged) : new ArrayList<>();
+                    applyAlbumOrdering(type, ordered);
+                    if (size > 0 && ordered.size() > size) {
+                        ordered = new ArrayList<>(ordered.subList(0, size));
+                    }
+                    listLiveAlbums.postValue(ordered);
+                });
             }
         });
     }
@@ -459,11 +755,14 @@ public class AlbumRepository {
 
                 applyAlbumOrdering(type, filtered);
 
-                if (size > 0 && filtered.size() > size) {
-                    filtered = new ArrayList<>(filtered.subList(0, size));
-                }
-
-                LocalMusicRepository.appendLocalAlbums(App.getContext(), filtered, listLiveAlbums::postValue);
+                LocalMusicRepository.appendLocalAlbums(App.getContext(), filtered, merged -> {
+                    List<AlbumID3> ordered = merged != null ? new ArrayList<>(merged) : new ArrayList<>();
+                    applyAlbumOrdering(type, ordered);
+                    if (size > 0 && ordered.size() > size) {
+                        ordered = new ArrayList<>(ordered.subList(0, size));
+                    }
+                    listLiveAlbums.postValue(ordered);
+                });
             }
         });
     }
@@ -481,12 +780,39 @@ public class AlbumRepository {
                 if (albums == null) return;
                 if (random) {
                     Collections.shuffle(albums);
-                    starredAlbums.postValue(albums.subList(0, Math.min(size, albums.size())));
+                    int limit = Math.min(size, albums.size());
+                    starredAlbums.postValue(new ArrayList<>(albums.subList(0, limit)));
                 } else {
                     starredAlbums.postValue(albums);
                 }
             }
         });
+    }
+
+    private List<AlbumID3> mapLegacyStarredAlbums(List<Child> legacyAlbums) {
+        if (legacyAlbums == null) return null;
+        List<AlbumID3> mapped = new ArrayList<>();
+        for (Child legacy : legacyAlbums) {
+            if (legacy == null) continue;
+            AlbumID3 album = new AlbumID3();
+            album.setId(legacy.getId());
+            String name = legacy.getAlbum();
+            if (name == null || name.isEmpty()) {
+                name = legacy.getTitle();
+            }
+            album.setName(name);
+            album.setArtist(legacy.getArtist());
+            album.setArtistId(legacy.getArtistId());
+            album.setCoverArtId(legacy.getCoverArtId());
+            album.setYear(legacy.getYear() != null ? legacy.getYear() : 0);
+            album.setStarred(legacy.getStarred());
+            album.setGenre(legacy.getGenre());
+            album.setDuration(legacy.getDuration() != null ? legacy.getDuration() : 0);
+            album.setPlayCount(legacy.getPlayCount());
+            album.setUserRating(legacy.getUserRating());
+            mapped.add(album);
+        }
+        return mapped;
     }
 
     private void loadCachedAlbumTracks(String cacheKey, MutableLiveData<List<Child>> albumTracks) {

@@ -98,7 +98,7 @@ public class SystemRepository {
         return extensionsResult;
     }
 
-    public MutableLiveData<LatestRelease> checkTempoUpdate() {
+    public MutableLiveData<LatestRelease> checkRubatoUpdate() {
         MutableLiveData<LatestRelease> latestRelease = new MutableLiveData<>();
 
         App.getGithubClientInstance()

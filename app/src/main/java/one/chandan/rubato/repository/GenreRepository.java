@@ -6,7 +6,7 @@ import androidx.lifecycle.MutableLiveData;
 import one.chandan.rubato.App;
 import one.chandan.rubato.subsonic.base.ApiResponse;
 import one.chandan.rubato.subsonic.models.Genre;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.repository.LocalMusicRepository;
 import one.chandan.rubato.subsonic.models.Child;
 import com.google.gson.reflect.TypeToken;
@@ -32,7 +32,7 @@ public class GenreRepository {
         MutableLiveData<List<Genre>> genres = new MutableLiveData<>();
         String cacheKey = "genres_all";
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedGenres(cacheKey, genres, random, size);
             return genres;
         }

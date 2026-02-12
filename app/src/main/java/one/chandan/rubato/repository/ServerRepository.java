@@ -5,6 +5,7 @@ import androidx.lifecycle.LiveData;
 import one.chandan.rubato.database.AppDatabase;
 import one.chandan.rubato.database.dao.ServerDao;
 import one.chandan.rubato.model.Server;
+import one.chandan.rubato.util.AppExecutors;
 
 import java.util.List;
 
@@ -18,44 +19,10 @@ public class ServerRepository {
     }
 
     public void insert(Server server) {
-        InsertThreadSafe insert = new InsertThreadSafe(serverDao, server);
-        Thread thread = new Thread(insert);
-        thread.start();
+        AppExecutors.io().execute(() -> serverDao.insert(server));
     }
 
     public void delete(Server server) {
-        DeleteThreadSafe delete = new DeleteThreadSafe(serverDao, server);
-        Thread thread = new Thread(delete);
-        thread.start();
-    }
-
-    private static class InsertThreadSafe implements Runnable {
-        private final ServerDao serverDao;
-        private final Server server;
-
-        public InsertThreadSafe(ServerDao serverDao, Server server) {
-            this.serverDao = serverDao;
-            this.server = server;
-        }
-
-        @Override
-        public void run() {
-            serverDao.insert(server);
-        }
-    }
-
-    private static class DeleteThreadSafe implements Runnable {
-        private final ServerDao serverDao;
-        private final Server server;
-
-        public DeleteThreadSafe(ServerDao serverDao, Server server) {
-            this.serverDao = serverDao;
-            this.server = server;
-        }
-
-        @Override
-        public void run() {
-            serverDao.delete(server);
-        }
+        AppExecutors.io().execute(() -> serverDao.delete(server));
     }
 }

@@ -17,9 +17,11 @@ import one.chandan.rubato.subsonic.models.AlbumID3;
 import one.chandan.rubato.subsonic.models.ArtistID3;
 import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.subsonic.models.Genre;
+import one.chandan.rubato.util.AppExecutors;
 import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.LocalMusicPermissions;
 import one.chandan.rubato.util.Preferences;
+import one.chandan.rubato.util.SearchIndexUtil;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,14 +31,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public final class LocalMusicRepository {
     public static final String LOCAL_SONG_PREFIX = "local:";
     public static final String LOCAL_ALBUM_PREFIX = "local-album:";
     public static final String LOCAL_ARTIST_PREFIX = "local-artist:";
 
-    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
+    private static final ExecutorService EXECUTOR = AppExecutors.localMusic();
     private static final Object LOCK = new Object();
 
     private static LocalLibrary cachedLibrary;
@@ -219,6 +220,30 @@ public final class LocalMusicRepository {
         });
     }
 
+    public static void getLocalAlbumSongsByMetadata(Context context, String albumName, String artistName, ResultCallback<List<Child>> callback) {
+        loadLibrary(context, library -> {
+            if (TextUtils.isEmpty(albumName)) {
+                callback.onResult(Collections.emptyList());
+                return;
+            }
+            String targetAlbum = SearchIndexUtil.normalize(albumName);
+            String targetArtist = SearchIndexUtil.normalize(artistName);
+            boolean matchArtist = !TextUtils.isEmpty(targetArtist);
+            List<Child> filtered = new ArrayList<>();
+            for (Child song : library.songs) {
+                if (song == null) continue;
+                String album = SearchIndexUtil.normalize(song.getAlbum());
+                if (!targetAlbum.equals(album)) continue;
+                if (matchArtist) {
+                    String artist = SearchIndexUtil.normalize(song.getArtist());
+                    if (!targetArtist.equals(artist)) continue;
+                }
+                filtered.add(song);
+            }
+            callback.onResult(filtered);
+        });
+    }
+
     public static void getLocalArtistSongs(Context context, String artistId, ResultCallback<List<Child>> callback) {
         loadLibrary(context, library -> {
             if (artistId == null) {
@@ -289,6 +314,10 @@ public final class LocalMusicRepository {
 
     public static void getLocalSongsByYearRange(Context context, Integer fromYear, Integer toYear, ResultCallback<List<Child>> callback) {
         loadLibrary(context, library -> {
+            if (fromYear == null && toYear == null) {
+                callback.onResult(new ArrayList<>(library.songs));
+                return;
+            }
             int minYear = fromYear != null ? fromYear : Integer.MIN_VALUE;
             int maxYear = toYear != null ? toYear : Integer.MAX_VALUE;
             List<Child> filtered = new ArrayList<>();

@@ -5,8 +5,11 @@ import androidx.lifecycle.LiveData;
 import one.chandan.rubato.database.AppDatabase;
 import one.chandan.rubato.database.dao.LocalSourceDao;
 import one.chandan.rubato.model.LocalSource;
+import one.chandan.rubato.util.AppExecutors;
 
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 public class LocalSourceRepository {
     private final LocalSourceDao localSourceDao = AppDatabase.getInstance().localSourceDao();
@@ -16,78 +19,21 @@ public class LocalSourceRepository {
     }
 
     public List<LocalSource> getSourcesSync() {
-        GetAllThreadSafe getAll = new GetAllThreadSafe(localSourceDao);
-        Thread thread = new Thread(getAll);
-        thread.start();
-
+        Future<List<LocalSource>> future = AppExecutors.io().submit(localSourceDao::getAllSync);
         try {
-            thread.join();
-            return getAll.getSources();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+            return future.get();
+        } catch (InterruptedException | ExecutionException e) {
+            Thread.currentThread().interrupt();
         }
-
         return null;
     }
 
     public void insert(LocalSource source) {
-        InsertThreadSafe insert = new InsertThreadSafe(localSourceDao, source);
-        Thread thread = new Thread(insert);
-        thread.start();
+        AppExecutors.io().execute(() -> localSourceDao.insert(source));
     }
 
     public void delete(LocalSource source) {
         if (source == null) return;
-        DeleteThreadSafe delete = new DeleteThreadSafe(localSourceDao, source);
-        Thread thread = new Thread(delete);
-        thread.start();
-    }
-
-    private static class InsertThreadSafe implements Runnable {
-        private final LocalSourceDao localSourceDao;
-        private final LocalSource source;
-
-        public InsertThreadSafe(LocalSourceDao localSourceDao, LocalSource source) {
-            this.localSourceDao = localSourceDao;
-            this.source = source;
-        }
-
-        @Override
-        public void run() {
-            localSourceDao.insert(source);
-        }
-    }
-
-    private static class DeleteThreadSafe implements Runnable {
-        private final LocalSourceDao localSourceDao;
-        private final LocalSource source;
-
-        public DeleteThreadSafe(LocalSourceDao localSourceDao, LocalSource source) {
-            this.localSourceDao = localSourceDao;
-            this.source = source;
-        }
-
-        @Override
-        public void run() {
-            localSourceDao.delete(source);
-        }
-    }
-
-    private static class GetAllThreadSafe implements Runnable {
-        private final LocalSourceDao localSourceDao;
-        private List<LocalSource> sources;
-
-        public GetAllThreadSafe(LocalSourceDao localSourceDao) {
-            this.localSourceDao = localSourceDao;
-        }
-
-        @Override
-        public void run() {
-            sources = localSourceDao.getAllSync();
-        }
-
-        public List<LocalSource> getSources() {
-            return sources;
-        }
+        AppExecutors.io().execute(() -> localSourceDao.delete(source));
     }
 }

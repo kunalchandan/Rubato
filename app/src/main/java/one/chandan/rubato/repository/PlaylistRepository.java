@@ -10,9 +10,10 @@ import one.chandan.rubato.database.dao.PlaylistDao;
 import one.chandan.rubato.subsonic.base.ApiResponse;
 import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.subsonic.models.Playlist;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.LibraryDedupeUtil;
 import one.chandan.rubato.util.SearchIndexUtil;
+import one.chandan.rubato.util.AppExecutors;
 import com.google.gson.reflect.TypeToken;
 
 import java.util.ArrayList;
@@ -35,7 +36,7 @@ public class PlaylistRepository {
         loadCachedPlaylists(listLivePlaylists, random, size);
         mergeWithJellyfinPlaylists(listLivePlaylists);
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             return listLivePlaylists;
         }
 
@@ -85,7 +86,7 @@ public class PlaylistRepository {
 
         loadCachedPlaylistSongs(cacheKey, listLivePlaylistSongs);
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             return listLivePlaylistSongs;
         }
 
@@ -115,6 +116,7 @@ public class PlaylistRepository {
     }
 
     public void addSongToPlaylist(String playlistId, ArrayList<String> songsId) {
+        if (OfflinePolicy.isOffline()) return;
         if (SearchIndexUtil.isJellyfinTagged(playlistId)) return;
         App.getSubsonicClientInstance(false)
                 .getPlaylistClient()
@@ -133,6 +135,7 @@ public class PlaylistRepository {
     }
 
     public void createPlaylist(String playlistId, String name, ArrayList<String> songsId) {
+        if (OfflinePolicy.isOffline()) return;
         if (SearchIndexUtil.isJellyfinTagged(playlistId)) return;
         App.getSubsonicClientInstance(false)
                 .getPlaylistClient()
@@ -151,6 +154,7 @@ public class PlaylistRepository {
     }
 
     public void updatePlaylist(String playlistId, String name, ArrayList<String> songsId) {
+        if (OfflinePolicy.isOffline()) return;
         if (SearchIndexUtil.isJellyfinTagged(playlistId)) return;
         App.getSubsonicClientInstance(false)
                 .getPlaylistClient()
@@ -169,6 +173,7 @@ public class PlaylistRepository {
     }
 
     public void updatePlaylist(String playlistId, String name, boolean isPublic, ArrayList<String> songIdToAdd, ArrayList<Integer> songIndexToRemove) {
+        if (OfflinePolicy.isOffline()) return;
         if (SearchIndexUtil.isJellyfinTagged(playlistId)) return;
         App.getSubsonicClientInstance(false)
                 .getPlaylistClient()
@@ -187,6 +192,7 @@ public class PlaylistRepository {
     }
 
     public void deletePlaylist(String playlistId) {
+        if (OfflinePolicy.isOffline()) return;
         if (SearchIndexUtil.isJellyfinTagged(playlistId)) return;
         App.getSubsonicClientInstance(false)
                 .getPlaylistClient()
@@ -249,44 +255,10 @@ public class PlaylistRepository {
     }
 
     public void insert(Playlist playlist) {
-        InsertThreadSafe insert = new InsertThreadSafe(playlistDao, playlist);
-        Thread thread = new Thread(insert);
-        thread.start();
+        AppExecutors.io().execute(() -> playlistDao.insert(playlist));
     }
 
     public void delete(Playlist playlist) {
-        DeleteThreadSafe delete = new DeleteThreadSafe(playlistDao, playlist);
-        Thread thread = new Thread(delete);
-        thread.start();
-    }
-
-    private static class InsertThreadSafe implements Runnable {
-        private final PlaylistDao playlistDao;
-        private final Playlist playlist;
-
-        public InsertThreadSafe(PlaylistDao playlistDao, Playlist playlist) {
-            this.playlistDao = playlistDao;
-            this.playlist = playlist;
-        }
-
-        @Override
-        public void run() {
-            playlistDao.insert(playlist);
-        }
-    }
-
-    private static class DeleteThreadSafe implements Runnable {
-        private final PlaylistDao playlistDao;
-        private final Playlist playlist;
-
-        public DeleteThreadSafe(PlaylistDao playlistDao, Playlist playlist) {
-            this.playlistDao = playlistDao;
-            this.playlist = playlist;
-        }
-
-        @Override
-        public void run() {
-            playlistDao.delete(playlist);
-        }
+        AppExecutors.io().execute(() -> playlistDao.delete(playlist));
     }
 }

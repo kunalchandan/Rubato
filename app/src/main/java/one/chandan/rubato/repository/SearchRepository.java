@@ -9,6 +9,16 @@ import one.chandan.rubato.database.dao.RecentSearchDao;
 import one.chandan.rubato.model.RecentSearch;
 import one.chandan.rubato.model.LibrarySearchEntry;
 import one.chandan.rubato.model.SearchSuggestion;
+import one.chandan.rubato.domain.LibrarySearchEntryMapper;
+import one.chandan.rubato.domain.LegacyMediaMapper;
+import one.chandan.rubato.domain.MediaAlbum;
+import one.chandan.rubato.domain.MediaArtist;
+import one.chandan.rubato.domain.MediaDedupeUtil;
+import one.chandan.rubato.domain.MediaPlaylist;
+import one.chandan.rubato.domain.MediaSong;
+import one.chandan.rubato.domain.MediaSourceType;
+import one.chandan.rubato.source.LocalSourceAdapter;
+import one.chandan.rubato.source.SubsonicSourceAdapter;
 import one.chandan.rubato.subsonic.base.ApiResponse;
 import one.chandan.rubato.subsonic.models.AlbumID3;
 import one.chandan.rubato.subsonic.models.ArtistID3;
@@ -17,8 +27,10 @@ import one.chandan.rubato.subsonic.models.Playlist;
 import one.chandan.rubato.subsonic.models.SearchResult2;
 import one.chandan.rubato.subsonic.models.SearchResult3;
 import one.chandan.rubato.repository.LocalMusicRepository;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.OfflinePolicy;
+import one.chandan.rubato.util.Preferences;
 import one.chandan.rubato.util.SearchIndexBuilder;
+import one.chandan.rubato.util.AppExecutors;
 import com.google.gson.reflect.TypeToken;
 
 import java.util.ArrayList;
@@ -27,13 +39,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.lang.reflect.Type;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 import one.chandan.rubato.util.SearchIndexUtil;
 
-public class SearchingRepository {
+public class SearchRepository {
+    private static final long MAX_SONGS_CACHE_SEARCH_CHARS = 3_000_000L;
     private final RecentSearchDao recentSearchDao = AppDatabase.getInstance().recentSearchDao();
     private final CacheRepository cacheRepository = new CacheRepository();
     private final LibrarySearchIndexRepository searchIndexRepository = new LibrarySearchIndexRepository();
@@ -64,19 +79,32 @@ public class SearchingRepository {
     public MutableLiveData<SearchResult3> search3(String query) {
         MutableLiveData<SearchResult3> result = new MutableLiveData<>();
 
-        LocalMusicRepository.search(App.getContext(), query, localResult -> {
-            SearchResult3 localOnly = new SearchResult3();
-            localOnly.setArtists(localResult.artists);
-            localOnly.setAlbums(localResult.albums);
-            localOnly.setSongs(localResult.songs);
-            result.postValue(localOnly);
+        if (query == null || query.trim().isEmpty()) {
+            result.setValue(new SearchResult3());
+            return result;
+        }
 
-            if (NetworkUtil.isOffline()) {
-                loadIndexedSearch(query, localOnly, result);
+        SearchAccumulator accumulator = new SearchAccumulator(query, result);
+
+        LocalMusicRepository.search(App.getContext(), query, localResult -> {
+            synchronized (accumulator) {
+                accumulator.localArtists = mapLocalArtists(localResult != null ? localResult.artists : null);
+                accumulator.localAlbums = mapLocalAlbums(localResult != null ? localResult.albums : null);
+                accumulator.localSongs = mapLocalSongs(localResult != null ? localResult.songs : null);
             }
+            emitMerged(accumulator);
         });
 
-        if (NetworkUtil.isOffline()) {
+        searchIndexRepository.search(query, 20, 20, 20, (artists, albums, songs) -> {
+            synchronized (accumulator) {
+                accumulator.indexArtists = mapIndexArtists(artists);
+                accumulator.indexAlbums = mapIndexAlbums(albums);
+                accumulator.indexSongs = mapIndexSongs(songs);
+            }
+            emitMerged(accumulator);
+        });
+
+        if (OfflinePolicy.isOffline()) {
             return result;
         }
 
@@ -88,13 +116,18 @@ public class SearchingRepository {
                     public void onResponse(@NonNull Call<ApiResponse> call, @NonNull Response<ApiResponse> response) {
                         if (response.isSuccessful() && response.body() != null) {
                             SearchResult3 remote = response.body().getSubsonicResponse().getSearchResult3();
-                            mergeLocalSearch(query, remote, result);
+                            synchronized (accumulator) {
+                                accumulator.remoteArtists = mapRemoteArtists(remote != null ? remote.getArtists() : null);
+                                accumulator.remoteAlbums = mapRemoteAlbums(remote != null ? remote.getAlbums() : null);
+                                accumulator.remoteSongs = mapRemoteSongs(remote != null ? remote.getSongs() : null);
+                            }
+                            emitMerged(accumulator);
                         }
                     }
 
                     @Override
                     public void onFailure(@NonNull Call<ApiResponse> call, @NonNull Throwable t) {
-                        loadIndexedSearch(query, result.getValue(), result);
+                        emitMerged(accumulator);
                     }
                 });
 
@@ -107,15 +140,16 @@ public class SearchingRepository {
             return result;
         }
 
+        PlaylistAccumulator accumulator = new PlaylistAccumulator(query, result);
+
         searchIndexRepository.searchPlaylists(query, 20, entries -> {
-            if (entries != null && !entries.isEmpty()) {
-                result.postValue(mapPlaylists(entries));
-            } else {
-                loadCachedPlaylists(query, result);
+            synchronized (accumulator) {
+                accumulator.indexPlaylists = mapIndexPlaylists(entries);
             }
+            emitPlaylists(accumulator);
         });
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             return result;
         }
 
@@ -130,15 +164,18 @@ public class SearchingRepository {
                                 && response.body().getSubsonicResponse().getPlaylists().getPlaylists() != null) {
                             List<Playlist> playlists = response.body().getSubsonicResponse().getPlaylists().getPlaylists();
                             cacheRepository.save("playlists", playlists);
-                            result.postValue(filterPlaylists(playlists, query));
+                            synchronized (accumulator) {
+                                accumulator.remotePlaylists = mapRemotePlaylists(filterPlaylists(playlists, query));
+                            }
+                            emitPlaylists(accumulator);
                             return;
                         }
-                        loadCachedPlaylists(query, result);
+                        loadCachedPlaylistsDomain(query, accumulator);
                     }
 
                     @Override
                     public void onFailure(@NonNull Call<ApiResponse> call, @NonNull Throwable t) {
-                        loadCachedPlaylists(query, result);
+                        loadCachedPlaylistsDomain(query, accumulator);
                     }
                 });
 
@@ -177,7 +214,7 @@ public class SearchingRepository {
             }
         });
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadIndexedSuggestions(query, suggestionMap, suggestions, lock);
             return suggestions;
         }
@@ -360,21 +397,38 @@ public class SearchingRepository {
                 cacheRepository.loadOrNull("albums_all", albumType, new CacheRepository.CacheResult<List<AlbumID3>>() {
                     @Override
                     public void onLoaded(List<AlbumID3> albums) {
-                        cacheRepository.loadOrNull("songs_all", songType, new CacheRepository.CacheResult<List<Child>>() {
-                            @Override
-                            public void onLoaded(List<Child> songs) {
+                        cacheRepository.loadPayloadSize("songs_all", size -> {
+                            long safeSize = size != null ? size : 0L;
+                            if (safeSize > MAX_SONGS_CACHE_SEARCH_CHARS) {
                                 cacheRepository.loadOrNull("playlists", playlistType, new CacheRepository.CacheResult<List<Playlist>>() {
                                     @Override
                                     public void onLoaded(List<Playlist> playlists) {
-                                        maybeSeedIndex(artists, albums, songs, playlists);
+                                        maybeSeedIndex(artists, albums, Collections.emptyList(), playlists);
                                         SearchResult3 merged = new SearchResult3();
                                         merged.setArtists(mergeArtists(localBase.getArtists(), filterArtists(artists, query)));
                                         merged.setAlbums(mergeAlbums(localBase.getAlbums(), filterAlbums(albums, query)));
-                                        merged.setSongs(mergeSongs(localBase.getSongs(), filterSongs(songs, query)));
+                                        merged.setSongs(mergeSongs(localBase.getSongs(), Collections.emptyList()));
                                         result.postValue(merged);
                                     }
                                 });
+                                return;
                             }
+                            cacheRepository.loadOrNull("songs_all", songType, new CacheRepository.CacheResult<List<Child>>() {
+                                @Override
+                                public void onLoaded(List<Child> songs) {
+                                    cacheRepository.loadOrNull("playlists", playlistType, new CacheRepository.CacheResult<List<Playlist>>() {
+                                        @Override
+                                        public void onLoaded(List<Playlist> playlists) {
+                                            maybeSeedIndex(artists, albums, songs, playlists);
+                                            SearchResult3 merged = new SearchResult3();
+                                            merged.setArtists(mergeArtists(localBase.getArtists(), filterArtists(artists, query)));
+                                            merged.setAlbums(mergeAlbums(localBase.getAlbums(), filterAlbums(albums, query)));
+                                            merged.setSongs(mergeSongs(localBase.getSongs(), filterSongs(songs, query)));
+                                            result.postValue(merged);
+                                        }
+                                    });
+                                }
+                            });
                         });
                     }
                 });
@@ -428,13 +482,13 @@ public class SearchingRepository {
                 cacheRepository.loadOrNull("albums_all", albumType, new CacheRepository.CacheResult<List<AlbumID3>>() {
                     @Override
                     public void onLoaded(List<AlbumID3> albums) {
-                        cacheRepository.loadOrNull("songs_all", songType, new CacheRepository.CacheResult<List<Child>>() {
-                            @Override
-                            public void onLoaded(List<Child> songs) {
+                        cacheRepository.loadPayloadSize("songs_all", size -> {
+                            long safeSize = size != null ? size : 0L;
+                            if (safeSize > MAX_SONGS_CACHE_SEARCH_CHARS) {
                                 cacheRepository.loadOrNull("playlists", playlistType, new CacheRepository.CacheResult<List<Playlist>>() {
                                     @Override
                                     public void onLoaded(List<Playlist> playlists) {
-                                        maybeSeedIndex(artists, albums, songs, playlists);
+                                        maybeSeedIndex(artists, albums, Collections.emptyList(), playlists);
                                         synchronized (lock) {
                                             for (ArtistID3 artistID3 : filterArtists(artists, query)) {
                                                 addSuggestion(suggestionMap, artistID3 != null ? artistID3.getName() : null,
@@ -446,16 +500,41 @@ public class SearchingRepository {
                                                         albumID3 != null ? albumID3.getCoverArtId() : null,
                                                         SearchSuggestion.Kind.ALBUM);
                                             }
-                                            for (Child song : filterSongs(songs, query)) {
-                                                addSuggestion(suggestionMap, song != null ? song.getTitle() : null,
-                                                        song != null ? song.getCoverArtId() : null,
-                                                        SearchSuggestion.Kind.SONG);
-                                            }
                                             suggestions.postValue(new ArrayList<>(suggestionMap.values()));
                                         }
                                     }
                                 });
+                                return;
                             }
+                            cacheRepository.loadOrNull("songs_all", songType, new CacheRepository.CacheResult<List<Child>>() {
+                                @Override
+                                public void onLoaded(List<Child> songs) {
+                                    cacheRepository.loadOrNull("playlists", playlistType, new CacheRepository.CacheResult<List<Playlist>>() {
+                                        @Override
+                                        public void onLoaded(List<Playlist> playlists) {
+                                            maybeSeedIndex(artists, albums, songs, playlists);
+                                            synchronized (lock) {
+                                                for (ArtistID3 artistID3 : filterArtists(artists, query)) {
+                                                    addSuggestion(suggestionMap, artistID3 != null ? artistID3.getName() : null,
+                                                            artistID3 != null ? artistID3.getCoverArtId() : null,
+                                                            SearchSuggestion.Kind.ARTIST);
+                                                }
+                                                for (AlbumID3 albumID3 : filterAlbums(albums, query)) {
+                                                    addSuggestion(suggestionMap, albumID3 != null ? albumID3.getName() : null,
+                                                            albumID3 != null ? albumID3.getCoverArtId() : null,
+                                                            SearchSuggestion.Kind.ALBUM);
+                                                }
+                                                for (Child song : filterSongs(songs, query)) {
+                                                    addSuggestion(suggestionMap, song != null ? song.getTitle() : null,
+                                                            song != null ? song.getCoverArtId() : null,
+                                                            SearchSuggestion.Kind.SONG);
+                                                }
+                                                suggestions.postValue(new ArrayList<>(suggestionMap.values()));
+                                            }
+                                        }
+                                    });
+                                }
+                            });
                         });
                     }
                 });
@@ -610,17 +689,403 @@ public class SearchingRepository {
         return candidate.getUpdatedAt() > existing.getUpdatedAt();
     }
 
-    private List<Playlist> mapPlaylists(List<LibrarySearchEntry> entries) {
+    private List<MediaPlaylist> mapIndexPlaylists(List<LibrarySearchEntry> entries) {
         if (entries == null || entries.isEmpty()) return Collections.emptyList();
-        List<Playlist> mapped = new ArrayList<>();
+        String subsonicSourceId = resolveSubsonicSourceId();
+        List<MediaPlaylist> mapped = new ArrayList<>();
         for (LibrarySearchEntry entry : entries) {
-            if (entry == null || entry.getItemId() == null) continue;
-            Playlist playlist = new Playlist(tagEntryId(entry, entry.getItemId()));
-            playlist.setName(entry.getTitle());
-            playlist.setCoverArtId(tagCoverArt(entry));
-            mapped.add(playlist);
+            MediaPlaylist playlist = LibrarySearchEntryMapper.toPlaylist(entry, subsonicSourceId);
+            if (playlist != null) {
+                mapped.add(playlist);
+            }
         }
         return mapped;
+    }
+
+    private String resolveSubsonicSourceId() {
+        String serverId = Preferences.getServerId();
+        if (serverId != null && !serverId.trim().isEmpty()) {
+            return serverId.trim();
+        }
+        return MediaSourceType.SUBSONIC.getId();
+    }
+
+    private SubsonicSourceAdapter subsonicAdapter() {
+        return new SubsonicSourceAdapter(resolveSubsonicSourceId(), MediaSourceType.SUBSONIC.getId());
+    }
+
+    private List<MediaArtist> mapLocalArtists(List<ArtistID3> artists) {
+        if (artists == null || artists.isEmpty()) return Collections.emptyList();
+        LocalSourceAdapter adapter = new LocalSourceAdapter();
+        List<MediaArtist> mapped = new ArrayList<>();
+        for (ArtistID3 artist : artists) {
+            MediaArtist item = adapter.mapArtist(artist);
+            if (item != null) mapped.add(item);
+        }
+        return mapped;
+    }
+
+    private List<MediaAlbum> mapLocalAlbums(List<AlbumID3> albums) {
+        if (albums == null || albums.isEmpty()) return Collections.emptyList();
+        LocalSourceAdapter adapter = new LocalSourceAdapter();
+        List<MediaAlbum> mapped = new ArrayList<>();
+        for (AlbumID3 album : albums) {
+            MediaAlbum item = adapter.mapAlbum(album);
+            if (item != null) mapped.add(item);
+        }
+        return mapped;
+    }
+
+    private List<MediaSong> mapLocalSongs(List<Child> songs) {
+        if (songs == null || songs.isEmpty()) return Collections.emptyList();
+        LocalSourceAdapter adapter = new LocalSourceAdapter();
+        List<MediaSong> mapped = new ArrayList<>();
+        for (Child song : songs) {
+            MediaSong item = adapter.mapSong(song);
+            if (item != null) mapped.add(item);
+        }
+        return mapped;
+    }
+
+    private List<MediaArtist> mapRemoteArtists(List<ArtistID3> artists) {
+        if (artists == null || artists.isEmpty()) return Collections.emptyList();
+        SubsonicSourceAdapter adapter = subsonicAdapter();
+        List<MediaArtist> mapped = new ArrayList<>();
+        for (ArtistID3 artist : artists) {
+            MediaArtist item = adapter.mapArtist(artist);
+            if (item != null) mapped.add(item);
+        }
+        return mapped;
+    }
+
+    private List<MediaAlbum> mapRemoteAlbums(List<AlbumID3> albums) {
+        if (albums == null || albums.isEmpty()) return Collections.emptyList();
+        SubsonicSourceAdapter adapter = subsonicAdapter();
+        List<MediaAlbum> mapped = new ArrayList<>();
+        for (AlbumID3 album : albums) {
+            MediaAlbum item = adapter.mapAlbum(album);
+            if (item != null) mapped.add(item);
+        }
+        return mapped;
+    }
+
+    private List<MediaSong> mapRemoteSongs(List<Child> songs) {
+        if (songs == null || songs.isEmpty()) return Collections.emptyList();
+        SubsonicSourceAdapter adapter = subsonicAdapter();
+        List<MediaSong> mapped = new ArrayList<>();
+        for (Child song : songs) {
+            MediaSong item = adapter.mapSong(song);
+            if (item != null) mapped.add(item);
+        }
+        return mapped;
+    }
+
+    private List<MediaArtist> mapIndexArtists(List<LibrarySearchEntry> entries) {
+        if (entries == null || entries.isEmpty()) return Collections.emptyList();
+        String subsonicSourceId = resolveSubsonicSourceId();
+        List<MediaArtist> mapped = new ArrayList<>();
+        for (LibrarySearchEntry entry : entries) {
+            MediaArtist artist = LibrarySearchEntryMapper.toArtist(entry, subsonicSourceId);
+            if (artist != null) mapped.add(artist);
+        }
+        return mapped;
+    }
+
+    private List<MediaAlbum> mapIndexAlbums(List<LibrarySearchEntry> entries) {
+        if (entries == null || entries.isEmpty()) return Collections.emptyList();
+        String subsonicSourceId = resolveSubsonicSourceId();
+        List<MediaAlbum> mapped = new ArrayList<>();
+        for (LibrarySearchEntry entry : entries) {
+            MediaAlbum album = LibrarySearchEntryMapper.toAlbum(entry, subsonicSourceId);
+            if (album != null) mapped.add(album);
+        }
+        return mapped;
+    }
+
+    private List<MediaSong> mapIndexSongs(List<LibrarySearchEntry> entries) {
+        if (entries == null || entries.isEmpty()) return Collections.emptyList();
+        String subsonicSourceId = resolveSubsonicSourceId();
+        List<MediaSong> mapped = new ArrayList<>();
+        for (LibrarySearchEntry entry : entries) {
+            MediaSong song = LibrarySearchEntryMapper.toSong(entry, subsonicSourceId);
+            if (song != null) mapped.add(song);
+        }
+        return mapped;
+    }
+
+    private List<MediaPlaylist> mapRemotePlaylists(List<Playlist> playlists) {
+        if (playlists == null || playlists.isEmpty()) return Collections.emptyList();
+        SubsonicSourceAdapter adapter = subsonicAdapter();
+        List<MediaPlaylist> mapped = new ArrayList<>();
+        for (Playlist playlist : playlists) {
+            MediaPlaylist item = adapter.mapPlaylist(playlist);
+            if (item != null) mapped.add(item);
+        }
+        return mapped;
+    }
+
+    private void emitMerged(SearchAccumulator accumulator) {
+        List<MediaArtist> artists;
+        List<MediaAlbum> albums;
+        List<MediaSong> songs;
+        synchronized (accumulator) {
+            artists = MediaDedupeUtil.INSTANCE.mergeArtists(
+                    accumulator.localArtists,
+                    accumulator.indexArtists,
+                    accumulator.remoteArtists
+            );
+            albums = MediaDedupeUtil.INSTANCE.mergeAlbums(
+                    accumulator.localAlbums,
+                    accumulator.indexAlbums,
+                    accumulator.remoteAlbums
+            );
+            songs = MediaDedupeUtil.INSTANCE.mergeSongs(
+                    accumulator.localSongs,
+                    accumulator.indexSongs,
+                    accumulator.remoteSongs
+            );
+        }
+
+        artists = rankArtists(accumulator.query, artists);
+        albums = rankAlbums(accumulator.query, albums);
+        songs = rankSongs(accumulator.query, songs);
+
+        SearchResult3 merged = new SearchResult3();
+        merged.setArtists(toLegacyArtists(artists, 20));
+        merged.setAlbums(toLegacyAlbums(albums, 20));
+        merged.setSongs(toLegacySongs(songs, 20));
+        accumulator.result.postValue(merged);
+    }
+
+    private void emitPlaylists(PlaylistAccumulator accumulator) {
+        List<MediaPlaylist> merged;
+        synchronized (accumulator) {
+            merged = MediaDedupeUtil.INSTANCE.mergePlaylists(
+                    accumulator.indexPlaylists,
+                    accumulator.remotePlaylists
+            );
+        }
+        merged = rankPlaylists(accumulator.query, merged);
+        accumulator.result.postValue(toLegacyPlaylists(merged, 20));
+    }
+
+    private List<MediaArtist> rankArtists(String query, List<MediaArtist> items) {
+        if (items == null || items.isEmpty()) return Collections.emptyList();
+        List<MediaArtist> ranked = new ArrayList<>(items);
+        ranked.sort((a, b) -> {
+            int scoreA = scoreArtist(query, a);
+            int scoreB = scoreArtist(query, b);
+            if (scoreA != scoreB) return Integer.compare(scoreB, scoreA);
+            int sourceA = sourceRank(a != null ? a.getId().getSourceType() : null);
+            int sourceB = sourceRank(b != null ? b.getId().getSourceType() : null);
+            if (sourceA != sourceB) return Integer.compare(sourceA, sourceB);
+            return compareText(a != null ? a.getName() : null, b != null ? b.getName() : null);
+        });
+        return ranked;
+    }
+
+    private List<MediaAlbum> rankAlbums(String query, List<MediaAlbum> items) {
+        if (items == null || items.isEmpty()) return Collections.emptyList();
+        List<MediaAlbum> ranked = new ArrayList<>(items);
+        ranked.sort((a, b) -> {
+            int scoreA = scoreAlbum(query, a);
+            int scoreB = scoreAlbum(query, b);
+            if (scoreA != scoreB) return Integer.compare(scoreB, scoreA);
+            int sourceA = sourceRank(a != null ? a.getId().getSourceType() : null);
+            int sourceB = sourceRank(b != null ? b.getId().getSourceType() : null);
+            if (sourceA != sourceB) return Integer.compare(sourceA, sourceB);
+            return compareText(a != null ? a.getTitle() : null, b != null ? b.getTitle() : null);
+        });
+        return ranked;
+    }
+
+    private List<MediaSong> rankSongs(String query, List<MediaSong> items) {
+        if (items == null || items.isEmpty()) return Collections.emptyList();
+        List<MediaSong> ranked = new ArrayList<>(items);
+        ranked.sort((a, b) -> {
+            int scoreA = scoreSong(query, a);
+            int scoreB = scoreSong(query, b);
+            if (scoreA != scoreB) return Integer.compare(scoreB, scoreA);
+            int sourceA = sourceRank(a != null ? a.getId().getSourceType() : null);
+            int sourceB = sourceRank(b != null ? b.getId().getSourceType() : null);
+            if (sourceA != sourceB) return Integer.compare(sourceA, sourceB);
+            return compareText(a != null ? a.getTitle() : null, b != null ? b.getTitle() : null);
+        });
+        return ranked;
+    }
+
+    private List<MediaPlaylist> rankPlaylists(String query, List<MediaPlaylist> items) {
+        if (items == null || items.isEmpty()) return Collections.emptyList();
+        List<MediaPlaylist> ranked = new ArrayList<>(items);
+        ranked.sort((a, b) -> {
+            int scoreA = scorePlaylist(query, a);
+            int scoreB = scorePlaylist(query, b);
+            if (scoreA != scoreB) return Integer.compare(scoreB, scoreA);
+            int sourceA = sourceRank(a != null ? a.getId().getSourceType() : null);
+            int sourceB = sourceRank(b != null ? b.getId().getSourceType() : null);
+            if (sourceA != sourceB) return Integer.compare(sourceA, sourceB);
+            return compareText(a != null ? a.getName() : null, b != null ? b.getName() : null);
+        });
+        return ranked;
+    }
+
+    private int scoreArtist(String query, MediaArtist artist) {
+        if (artist == null) return 0;
+        return scoreMatch(query, artist.getName(), null, null)
+                + scoreSource(artist.getId().getSourceType())
+                + artist.detailScore();
+    }
+
+    private int scoreAlbum(String query, MediaAlbum album) {
+        if (album == null) return 0;
+        return scoreMatch(query, album.getTitle(), album.getArtist(), null)
+                + scoreSource(album.getId().getSourceType())
+                + album.detailScore();
+    }
+
+    private int scoreSong(String query, MediaSong song) {
+        if (song == null) return 0;
+        return scoreMatch(query, song.getTitle(), song.getArtist(), song.getAlbum())
+                + scoreSource(song.getId().getSourceType())
+                + song.detailScore();
+    }
+
+    private int scorePlaylist(String query, MediaPlaylist playlist) {
+        if (playlist == null) return 0;
+        return scoreMatch(query, playlist.getName(), null, null)
+                + scoreSource(playlist.getId().getSourceType())
+                + playlist.detailScore();
+    }
+
+    private int scoreMatch(String query, String title, String artist, String album) {
+        String needle = SearchIndexUtil.normalize(query);
+        if (needle.isEmpty()) return 0;
+        int score = 0;
+        String titleNorm = SearchIndexUtil.normalize(title);
+        if (!titleNorm.isEmpty()) {
+            if (titleNorm.equals(needle)) score += 60;
+            else if (titleNorm.startsWith(needle)) score += 45;
+            else if (titleNorm.contains(needle)) score += 25;
+        }
+        String artistNorm = SearchIndexUtil.normalize(artist);
+        if (!artistNorm.isEmpty()) {
+            if (artistNorm.equals(needle)) score += 25;
+            else if (artistNorm.startsWith(needle)) score += 15;
+            else if (artistNorm.contains(needle)) score += 10;
+        }
+        String albumNorm = SearchIndexUtil.normalize(album);
+        if (!albumNorm.isEmpty()) {
+            if (albumNorm.equals(needle)) score += 15;
+            else if (albumNorm.startsWith(needle)) score += 10;
+            else if (albumNorm.contains(needle)) score += 5;
+        }
+        return score;
+    }
+
+    private int scoreSource(MediaSourceType type) {
+        if (type == null) return 0;
+        int rank = SearchIndexUtil.sourcePriority(type.getId());
+        return Math.max(0, 6 - rank);
+    }
+
+    private int sourceRank(MediaSourceType type) {
+        if (type == null) return Integer.MAX_VALUE;
+        return SearchIndexUtil.sourcePriority(type.getId());
+    }
+
+    private int compareText(String left, String right) {
+        String a = left != null ? left : "";
+        String b = right != null ? right : "";
+        return a.compareToIgnoreCase(b);
+    }
+
+    private List<ArtistID3> toLegacyArtists(List<MediaArtist> items, int limit) {
+        if (items == null || items.isEmpty()) return Collections.emptyList();
+        List<ArtistID3> mapped = new ArrayList<>();
+        for (MediaArtist item : items) {
+            if (mapped.size() >= limit) break;
+            ArtistID3 legacy = LegacyMediaMapper.INSTANCE.toArtistId3(item);
+            if (legacy != null) mapped.add(legacy);
+        }
+        return mapped;
+    }
+
+    private List<AlbumID3> toLegacyAlbums(List<MediaAlbum> items, int limit) {
+        if (items == null || items.isEmpty()) return Collections.emptyList();
+        List<AlbumID3> mapped = new ArrayList<>();
+        for (MediaAlbum item : items) {
+            if (mapped.size() >= limit) break;
+            AlbumID3 legacy = LegacyMediaMapper.INSTANCE.toAlbumId3(item);
+            if (legacy != null) mapped.add(legacy);
+        }
+        return mapped;
+    }
+
+    private List<Child> toLegacySongs(List<MediaSong> items, int limit) {
+        if (items == null || items.isEmpty()) return Collections.emptyList();
+        List<Child> mapped = new ArrayList<>();
+        for (MediaSong item : items) {
+            if (mapped.size() >= limit) break;
+            Child legacy = LegacyMediaMapper.INSTANCE.toSong(item);
+            if (legacy != null) mapped.add(legacy);
+        }
+        return mapped;
+    }
+
+    private List<Playlist> toLegacyPlaylists(List<MediaPlaylist> items, int limit) {
+        if (items == null || items.isEmpty()) return Collections.emptyList();
+        List<Playlist> mapped = new ArrayList<>();
+        for (MediaPlaylist item : items) {
+            if (mapped.size() >= limit) break;
+            Playlist legacy = LegacyMediaMapper.INSTANCE.toPlaylist(item);
+            if (legacy != null) mapped.add(legacy);
+        }
+        return mapped;
+    }
+
+    private void loadCachedPlaylistsDomain(String query, PlaylistAccumulator accumulator) {
+        if (query == null || query.trim().isEmpty()) return;
+        Type playlistType = new TypeToken<List<Playlist>>() {}.getType();
+        cacheRepository.loadOrNull("playlists", playlistType, new CacheRepository.CacheResult<List<Playlist>>() {
+            @Override
+            public void onLoaded(List<Playlist> playlists) {
+                synchronized (accumulator) {
+                    accumulator.remotePlaylists = mapRemotePlaylists(filterPlaylists(playlists, query));
+                }
+                emitPlaylists(accumulator);
+            }
+        });
+    }
+
+    private static class SearchAccumulator {
+        private final String query;
+        private final MutableLiveData<SearchResult3> result;
+        private List<MediaArtist> localArtists = Collections.emptyList();
+        private List<MediaAlbum> localAlbums = Collections.emptyList();
+        private List<MediaSong> localSongs = Collections.emptyList();
+        private List<MediaArtist> indexArtists = Collections.emptyList();
+        private List<MediaAlbum> indexAlbums = Collections.emptyList();
+        private List<MediaSong> indexSongs = Collections.emptyList();
+        private List<MediaArtist> remoteArtists = Collections.emptyList();
+        private List<MediaAlbum> remoteAlbums = Collections.emptyList();
+        private List<MediaSong> remoteSongs = Collections.emptyList();
+
+        private SearchAccumulator(String query, MutableLiveData<SearchResult3> result) {
+            this.query = query;
+            this.result = result;
+        }
+    }
+
+    private static class PlaylistAccumulator {
+        private final String query;
+        private final MutableLiveData<List<Playlist>> result;
+        private List<MediaPlaylist> indexPlaylists = Collections.emptyList();
+        private List<MediaPlaylist> remotePlaylists = Collections.emptyList();
+
+        private PlaylistAccumulator(String query, MutableLiveData<List<Playlist>> result) {
+            this.query = query;
+            this.result = result;
+        }
     }
 
     private List<ArtistID3> filterArtists(List<ArtistID3> artists, String query) {
@@ -681,17 +1146,6 @@ public class SearchingRepository {
             }
         }
         return filtered.size() > 20 ? filtered.subList(0, 20) : filtered;
-    }
-
-    private void loadCachedPlaylists(String query, MutableLiveData<List<Playlist>> result) {
-        if (query == null || query.trim().isEmpty()) return;
-        Type playlistType = new TypeToken<List<Playlist>>() {}.getType();
-        cacheRepository.loadOrNull("playlists", playlistType, new CacheRepository.CacheResult<List<Playlist>>() {
-            @Override
-            public void onLoaded(List<Playlist> playlists) {
-                result.postValue(filterPlaylists(playlists, query));
-            }
-        });
     }
 
     private List<ArtistID3> mergeArtists(List<ArtistID3> base, List<ArtistID3> extra) {
@@ -866,79 +1320,21 @@ public class SearchingRepository {
     }
 
     public void insert(RecentSearch recentSearch) {
-        InsertThreadSafe insert = new InsertThreadSafe(recentSearchDao, recentSearch);
-        Thread thread = new Thread(insert);
-        thread.start();
+        AppExecutors.io().execute(() -> recentSearchDao.insert(recentSearch));
     }
 
     public void delete(RecentSearch recentSearch) {
-        DeleteThreadSafe delete = new DeleteThreadSafe(recentSearchDao, recentSearch);
-        Thread thread = new Thread(delete);
-        thread.start();
+        AppExecutors.io().execute(() -> recentSearchDao.delete(recentSearch));
     }
 
     public List<String> getRecentSearchSuggestion() {
-        List<String> recent = new ArrayList<>();
-
-        RecentThreadSafe suggestionsThread = new RecentThreadSafe(recentSearchDao);
-        Thread thread = new Thread(suggestionsThread);
-        thread.start();
-
+        Future<List<String>> future = AppExecutors.io().submit(recentSearchDao::getRecent);
         try {
-            thread.join();
-            recent = suggestionsThread.getRecent();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        return recent;
-    }
-
-    private static class DeleteThreadSafe implements Runnable {
-        private final RecentSearchDao recentSearchDao;
-        private final RecentSearch recentSearch;
-
-        public DeleteThreadSafe(RecentSearchDao recentSearchDao, RecentSearch recentSearch) {
-            this.recentSearchDao = recentSearchDao;
-            this.recentSearch = recentSearch;
-        }
-
-        @Override
-        public void run() {
-            recentSearchDao.delete(recentSearch);
-        }
-    }
-
-    private static class InsertThreadSafe implements Runnable {
-        private final RecentSearchDao recentSearchDao;
-        private final RecentSearch recentSearch;
-
-        public InsertThreadSafe(RecentSearchDao recentSearchDao, RecentSearch recentSearch) {
-            this.recentSearchDao = recentSearchDao;
-            this.recentSearch = recentSearch;
-        }
-
-        @Override
-        public void run() {
-            recentSearchDao.insert(recentSearch);
-        }
-    }
-
-    private static class RecentThreadSafe implements Runnable {
-        private final RecentSearchDao recentSearchDao;
-        private List<String> recent = new ArrayList<>();
-
-        public RecentThreadSafe(RecentSearchDao recentSearchDao) {
-            this.recentSearchDao = recentSearchDao;
-        }
-
-        @Override
-        public void run() {
-            recent = recentSearchDao.getRecent();
-        }
-
-        public List<String> getRecent() {
-            return recent;
+            List<String> recent = future.get();
+            return recent != null ? recent : new ArrayList<>();
+        } catch (InterruptedException | ExecutionException e) {
+            Thread.currentThread().interrupt();
+            return new ArrayList<>();
         }
     }
 }

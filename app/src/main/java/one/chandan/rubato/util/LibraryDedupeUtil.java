@@ -113,6 +113,11 @@ public final class LibraryDedupeUtil {
     }
 
     private static boolean shouldPreferArtist(ArtistID3 candidate, ArtistID3 existing) {
+        int candidateScore = scoreArtist(candidate);
+        int existingScore = scoreArtist(existing);
+        if (candidateScore != existingScore) {
+            return candidateScore > existingScore;
+        }
         int candidateRank = SearchIndexUtil.sourcePriority(resolveArtistSource(candidate));
         int existingRank = SearchIndexUtil.sourcePriority(resolveArtistSource(existing));
         if (candidateRank != existingRank) {
@@ -127,6 +132,11 @@ public final class LibraryDedupeUtil {
     }
 
     private static boolean shouldPreferAlbum(AlbumID3 candidate, AlbumID3 existing) {
+        int candidateScore = scoreAlbum(candidate);
+        int existingScore = scoreAlbum(existing);
+        if (candidateScore != existingScore) {
+            return candidateScore > existingScore;
+        }
         int candidateRank = SearchIndexUtil.sourcePriority(resolveAlbumSource(candidate));
         int existingRank = SearchIndexUtil.sourcePriority(resolveAlbumSource(existing));
         if (candidateRank != existingRank) {
@@ -141,6 +151,11 @@ public final class LibraryDedupeUtil {
     }
 
     private static boolean shouldPreferSong(Child candidate, Child existing) {
+        int candidateScore = scoreSong(candidate);
+        int existingScore = scoreSong(existing);
+        if (candidateScore != existingScore) {
+            return candidateScore > existingScore;
+        }
         int candidateRank = SearchIndexUtil.sourcePriority(resolveSongSource(candidate));
         int existingRank = SearchIndexUtil.sourcePriority(resolveSongSource(existing));
         if (candidateRank != existingRank) {
@@ -155,6 +170,11 @@ public final class LibraryDedupeUtil {
     }
 
     private static boolean shouldPreferPlaylist(Playlist candidate, Playlist existing) {
+        int candidateScore = scorePlaylist(candidate);
+        int existingScore = scorePlaylist(existing);
+        if (candidateScore != existingScore) {
+            return candidateScore > existingScore;
+        }
         int candidateRank = SearchIndexUtil.sourcePriority(resolvePlaylistSource(candidate));
         int existingRank = SearchIndexUtil.sourcePriority(resolvePlaylistSource(existing));
         if (candidateRank != existingRank) {
@@ -166,6 +186,60 @@ public final class LibraryDedupeUtil {
             return candidateHasCover;
         }
         return false;
+    }
+
+    private static int scoreArtist(ArtistID3 artist) {
+        if (artist == null) return 0;
+        int score = 0;
+        if (hasText(artist.getName())) score++;
+        if (hasText(artist.getCoverArtId())) score++;
+        if (artist.getAlbumCount() > 0) score++;
+        return score;
+    }
+
+    private static int scoreAlbum(AlbumID3 album) {
+        if (album == null) return 0;
+        int score = 0;
+        if (hasText(album.getName())) score++;
+        if (hasText(album.getArtist())) score++;
+        if (hasText(album.getArtistId())) score++;
+        if (album.getYear() > 0) score++;
+        if (album.getSongCount() != null && album.getSongCount() > 0) score++;
+        if (album.getDuration() != null && album.getDuration() > 0) score++;
+        if (hasText(album.getGenre())) score++;
+        if (hasText(album.getCoverArtId())) score++;
+        return score;
+    }
+
+    private static int scoreSong(Child song) {
+        if (song == null) return 0;
+        int score = 0;
+        if (hasText(song.getTitle())) score++;
+        if (hasText(song.getArtist())) score++;
+        if (hasText(song.getAlbum())) score++;
+        if (hasText(song.getArtistId())) score++;
+        if (hasText(song.getAlbumId())) score++;
+        if (song.getTrack() != null && song.getTrack() > 0) score++;
+        if (song.getDiscNumber() != null && song.getDiscNumber() > 0) score++;
+        if (song.getYear() != null && song.getYear() > 0) score++;
+        if (song.getDuration() != null && song.getDuration() > 0) score++;
+        if (hasText(song.getCoverArtId())) score++;
+        return score;
+    }
+
+    private static int scorePlaylist(Playlist playlist) {
+        if (playlist == null) return 0;
+        int score = 0;
+        if (hasText(playlist.getName())) score++;
+        if (hasText(playlist.getOwner())) score++;
+        if (playlist.getSongCount() > 0) score++;
+        if (playlist.getDuration() > 0) score++;
+        if (hasText(playlist.getCoverArtId())) score++;
+        return score;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private static String resolveArtistSource(ArtistID3 artist) {

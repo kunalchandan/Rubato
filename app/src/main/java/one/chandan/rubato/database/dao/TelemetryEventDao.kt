@@ -13,6 +13,9 @@ interface TelemetryEventDao {
     @Query("SELECT * FROM telemetry_event ORDER BY timestamp DESC LIMIT :limit")
     fun getLatest(limit: Int): List<TelemetryEvent>
 
+    @Query("SELECT * FROM telemetry_event ORDER BY timestamp DESC")
+    fun getAll(): List<TelemetryEvent>
+
     @Query("DELETE FROM telemetry_event")
     fun clearAll()
 }

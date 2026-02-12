@@ -34,6 +34,7 @@ import one.chandan.rubato.subsonic.models.InternetRadioStation;
 import one.chandan.rubato.subsonic.models.MusicFolder;
 import one.chandan.rubato.subsonic.models.Playlist;
 import one.chandan.rubato.subsonic.models.PodcastEpisode;
+import one.chandan.rubato.util.AppExecutors;
 import one.chandan.rubato.util.DownloadUtil;
 import one.chandan.rubato.util.MappingUtil;
 import one.chandan.rubato.util.MusicUtil;
@@ -45,6 +46,8 @@ import com.google.common.util.concurrent.SettableFuture;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import retrofit2.Call;
@@ -879,9 +882,7 @@ public class AutomotiveRepository {
             sessionMediaItems.add(sessionMediaItem);
         }
 
-        InsertAllThreadSafe insertAll = new InsertAllThreadSafe(sessionMediaItemDao, sessionMediaItems);
-        Thread thread = new Thread(insertAll);
-        thread.start();
+        AppExecutors.io().execute(() -> sessionMediaItemDao.insertAll(sessionMediaItems));
     }
 
     @OptIn(markerClass = UnstableApi.class)
@@ -895,9 +896,7 @@ public class AutomotiveRepository {
             sessionMediaItems.add(sessionMediaItem);
         }
 
-        InsertAllThreadSafe insertAll = new InsertAllThreadSafe(sessionMediaItemDao, sessionMediaItems);
-        Thread thread = new Thread(insertAll);
-        thread.start();
+        AppExecutors.io().execute(() -> sessionMediaItemDao.insertAll(sessionMediaItems));
     }
 
     @OptIn(markerClass = UnstableApi.class)
@@ -911,119 +910,37 @@ public class AutomotiveRepository {
             sessionMediaItems.add(sessionMediaItem);
         }
 
-        InsertAllThreadSafe insertAll = new InsertAllThreadSafe(sessionMediaItemDao, sessionMediaItems);
-        Thread thread = new Thread(insertAll);
-        thread.start();
+        AppExecutors.io().execute(() -> sessionMediaItemDao.insertAll(sessionMediaItems));
     }
 
     public SessionMediaItem getSessionMediaItem(String id) {
-        SessionMediaItem sessionMediaItem = null;
-
-        GetMediaItemThreadSafe getMediaItemThreadSafe = new GetMediaItemThreadSafe(sessionMediaItemDao, id);
-        Thread thread = new Thread(getMediaItemThreadSafe);
-        thread.start();
-
+        Future<SessionMediaItem> future = AppExecutors.io().submit(() -> sessionMediaItemDao.get(id));
         try {
-            thread.join();
-            sessionMediaItem = getMediaItemThreadSafe.getSessionMediaItem();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+            return future.get();
+        } catch (InterruptedException | ExecutionException e) {
+            Thread.currentThread().interrupt();
+            return null;
         }
-
-        return sessionMediaItem;
     }
 
     public List<MediaItem> getMetadatas(long timestamp) {
-        List<MediaItem> mediaItems = Collections.emptyList();
-
-        GetMediaItemsThreadSafe getMediaItemsThreadSafe = new GetMediaItemsThreadSafe(sessionMediaItemDao, timestamp);
-        Thread thread = new Thread(getMediaItemsThreadSafe);
-        thread.start();
-
+        Future<List<MediaItem>> future = AppExecutors.io().submit(() -> {
+            List<SessionMediaItem> sessionMediaItems = sessionMediaItemDao.get(timestamp);
+            List<MediaItem> mediaItems = new ArrayList<>();
+            for (SessionMediaItem sessionMediaItem : sessionMediaItems) {
+                mediaItems.add(sessionMediaItem.getMediaItem());
+            }
+            return mediaItems;
+        });
         try {
-            thread.join();
-            mediaItems = getMediaItemsThreadSafe.getMediaItems();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+            return future.get();
+        } catch (InterruptedException | ExecutionException e) {
+            Thread.currentThread().interrupt();
+            return Collections.emptyList();
         }
-
-        return mediaItems;
     }
 
     public void deleteMetadata() {
-        DeleteAllThreadSafe delete = new DeleteAllThreadSafe(sessionMediaItemDao);
-        Thread thread = new Thread(delete);
-        thread.start();
-    }
-
-    private static class GetMediaItemThreadSafe implements Runnable {
-        private final SessionMediaItemDao sessionMediaItemDao;
-        private final String id;
-
-        private SessionMediaItem sessionMediaItem;
-
-        public GetMediaItemThreadSafe(SessionMediaItemDao sessionMediaItemDao, String id) {
-            this.sessionMediaItemDao = sessionMediaItemDao;
-            this.id = id;
-        }
-
-        @Override
-        public void run() {
-            sessionMediaItem = sessionMediaItemDao.get(id);
-        }
-
-        public SessionMediaItem getSessionMediaItem() {
-            return sessionMediaItem;
-        }
-    }
-
-    @OptIn(markerClass = UnstableApi.class)
-    private static class GetMediaItemsThreadSafe implements Runnable {
-        private final SessionMediaItemDao sessionMediaItemDao;
-        private final Long timestamp;
-        private final List<MediaItem> mediaItems = new ArrayList<>();
-
-        public GetMediaItemsThreadSafe(SessionMediaItemDao sessionMediaItemDao, Long timestamp) {
-            this.sessionMediaItemDao = sessionMediaItemDao;
-            this.timestamp = timestamp;
-        }
-
-        @Override
-        public void run() {
-            List<SessionMediaItem> sessionMediaItems = sessionMediaItemDao.get(timestamp);
-            sessionMediaItems.forEach(sessionMediaItem -> mediaItems.add(sessionMediaItem.getMediaItem()));
-        }
-
-        public List<MediaItem> getMediaItems() {
-            return mediaItems;
-        }
-    }
-
-    private static class InsertAllThreadSafe implements Runnable {
-        private final SessionMediaItemDao sessionMediaItemDao;
-        private final List<SessionMediaItem> sessionMediaItems;
-
-        public InsertAllThreadSafe(SessionMediaItemDao sessionMediaItemDao, List<SessionMediaItem> sessionMediaItems) {
-            this.sessionMediaItemDao = sessionMediaItemDao;
-            this.sessionMediaItems = sessionMediaItems;
-        }
-
-        @Override
-        public void run() {
-            sessionMediaItemDao.insertAll(sessionMediaItems);
-        }
-    }
-
-    private static class DeleteAllThreadSafe implements Runnable {
-        private final SessionMediaItemDao sessionMediaItemDao;
-
-        public DeleteAllThreadSafe(SessionMediaItemDao sessionMediaItemDao) {
-            this.sessionMediaItemDao = sessionMediaItemDao;
-        }
-
-        @Override
-        public void run() {
-            sessionMediaItemDao.deleteAll();
-        }
+        AppExecutors.io().execute(sessionMediaItemDao::deleteAll);
     }
 }

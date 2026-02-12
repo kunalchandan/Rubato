@@ -6,7 +6,7 @@ import androidx.lifecycle.MutableLiveData;
 import one.chandan.rubato.App;
 import one.chandan.rubato.subsonic.base.ApiResponse;
 import one.chandan.rubato.subsonic.models.LyricsList;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -19,7 +19,7 @@ public class OpenRepository {
         MutableLiveData<LyricsList> lyricsList = new MutableLiveData<>();
         String cacheKey = "lyrics_song_" + id;
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedLyrics(cacheKey, lyricsList);
             return lyricsList;
         }

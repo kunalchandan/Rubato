@@ -5,7 +5,8 @@ import androidx.lifecycle.MutableLiveData;
 
 import one.chandan.rubato.subsonic.base.ApiResponse;
 import one.chandan.rubato.subsonic.models.Child;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.subsonic.models.SubsonicResponse;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.App;
 import one.chandan.rubato.repository.LocalMusicRepository;
 import com.google.gson.reflect.TypeToken;
@@ -29,7 +30,7 @@ public class SongRepository {
 
         loadCachedSongs(cacheKey, starredSongs, random, size);
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             return starredSongs;
         }
 
@@ -39,20 +40,31 @@ public class SongRepository {
                 .enqueue(new Callback<ApiResponse>() {
                     @Override
                     public void onResponse(@NonNull Call<ApiResponse> call, @NonNull Response<ApiResponse> response) {
-                        if (response.isSuccessful() && response.body() != null && response.body().getSubsonicResponse().getStarred2() != null) {
-                            List<Child> songs = response.body().getSubsonicResponse().getStarred2().getSongs();
+                        if (response.isSuccessful() && response.body() != null) {
+                            SubsonicResponse subsonicResponse = response.body().getSubsonicResponse();
+                            List<Child> songs = null;
 
-                            if (songs != null) {
-                                if (!random) {
-                                    starredSongs.setValue(songs);
-                                } else {
-                                    Collections.shuffle(songs);
-                                    starredSongs.setValue(songs.subList(0, Math.min(size, songs.size())));
-                                }
+                            if (subsonicResponse != null && subsonicResponse.getStarred2() != null) {
+                                songs = subsonicResponse.getStarred2().getSongs();
                             }
 
-                            cacheRepository.save(cacheKey, songs);
-                            return;
+                            if (songs == null && subsonicResponse != null && subsonicResponse.getStarred() != null) {
+                                songs = subsonicResponse.getStarred().getSongs();
+                            }
+
+                            if (songs != null) {
+                                List<Child> safeSongs = new ArrayList<>(songs);
+                                if (!random) {
+                                    starredSongs.setValue(safeSongs);
+                                } else {
+                                    Collections.shuffle(safeSongs);
+                                    int limit = Math.min(size, safeSongs.size());
+                                    starredSongs.setValue(new ArrayList<>(safeSongs.subList(0, limit)));
+                                }
+
+                                cacheRepository.save(cacheKey, safeSongs);
+                                return;
+                            }
                         }
 
                         loadCachedSongs(cacheKey, starredSongs, random, size);
@@ -72,7 +84,7 @@ public class SongRepository {
         MutableLiveData<List<Child>> instantMix = new MutableLiveData<>();
         String cacheKey = "instant_mix_" + id + "_" + count;
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedSongs(cacheKey, instantMix);
             return instantMix;
         }
@@ -109,7 +121,7 @@ public class SongRepository {
         loadCachedSongs(cacheKey, randomSongsSample);
         loadCachedSongsByYearRange(fromYear, toYear, number, randomSongsSample);
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedSongsByYearRange(fromYear, toYear, number, randomSongsSample);
             return randomSongsSample;
         }
@@ -158,6 +170,7 @@ public class SongRepository {
     }
 
     public void setRating(String id, int rating) {
+        if (OfflinePolicy.isOffline()) return;
         App.getSubsonicClientInstance(false)
                 .getMediaAnnotationClient()
                 .setRating(id, rating)
@@ -178,7 +191,7 @@ public class SongRepository {
         MutableLiveData<List<Child>> songsByGenre = new MutableLiveData<>();
         String cacheKey = "songs_by_genre_" + id + "_" + page;
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedSongsByGenre(id, page, songsByGenre);
             return songsByGenre;
         }
@@ -217,7 +230,7 @@ public class SongRepository {
         }
         String cacheKey = keyBuilder.toString();
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedSongsByGenres(genresId, songsByGenre);
             return songsByGenre;
         }
@@ -258,7 +271,7 @@ public class SongRepository {
             return song;
         }
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedSong(cacheKey, song);
             loadCachedSongFromAll(id, song);
             return song;
@@ -340,10 +353,12 @@ public class SongRepository {
             public void onLoaded(List<Child> cachedSongs) {
                 if (cachedSongs == null) return;
                 if (random) {
-                    Collections.shuffle(cachedSongs);
-                    songs.postValue(cachedSongs.subList(0, Math.min(size, cachedSongs.size())));
+                    List<Child> safeSongs = new ArrayList<>(cachedSongs);
+                    Collections.shuffle(safeSongs);
+                    int limit = Math.min(size, safeSongs.size());
+                    songs.postValue(new ArrayList<>(safeSongs.subList(0, limit)));
                 } else {
-                    songs.postValue(cachedSongs);
+                    songs.postValue(new ArrayList<>(cachedSongs));
                 }
             }
         });
@@ -369,7 +384,7 @@ public class SongRepository {
             @Override
             public void onLoaded(List<Child> cachedSongs) {
                 if (cachedSongs == null) {
-                    randomSongsSample.postValue(new ArrayList<>());
+                    mergeLocalByYearRange(fromYear, toYear, number, new ArrayList<>(), randomSongsSample);
                     return;
                 }
 
@@ -485,6 +500,7 @@ public class SongRepository {
             if (limit > 0 && merged.size() > limit) {
                 merged = new ArrayList<>(merged.subList(0, limit));
             }
+            ensureRemoteFirstIfAvailable(merged);
             liveData.postValue(merged);
         });
     }
@@ -507,5 +523,23 @@ public class SongRepository {
             }
             liveData.postValue(merged);
         });
+    }
+
+    private void ensureRemoteFirstIfAvailable(List<Child> items) {
+        if (items == null || items.size() < 2) {
+            return;
+        }
+        Child first = items.get(0);
+        if (first == null || !LocalMusicRepository.isLocalSong(first)) {
+            return;
+        }
+        for (int i = 1; i < items.size(); i++) {
+            Child candidate = items.get(i);
+            if (candidate != null && !LocalMusicRepository.isLocalSong(candidate)) {
+                items.set(0, candidate);
+                items.set(i, first);
+                break;
+            }
+        }
     }
 }

@@ -52,6 +52,9 @@ public final class SearchIndexUtil {
         if (SOURCE_SUBSONIC.equals(cleanedSource) || cleanedSource.isEmpty()) {
             return itemId;
         }
+        if (itemId.startsWith(cleanedSource + ":")) {
+            return itemId;
+        }
         return cleanedSource + ":" + itemId;
     }
 

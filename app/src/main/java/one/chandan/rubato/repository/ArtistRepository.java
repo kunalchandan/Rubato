@@ -5,11 +5,13 @@ import androidx.lifecycle.MutableLiveData;
 
 import one.chandan.rubato.App;
 import one.chandan.rubato.subsonic.base.ApiResponse;
+import one.chandan.rubato.subsonic.models.Artist;
 import one.chandan.rubato.subsonic.models.ArtistID3;
 import one.chandan.rubato.subsonic.models.ArtistInfo2;
 import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.subsonic.models.IndexID3;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.subsonic.models.SubsonicResponse;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.repository.LocalMusicRepository;
 import one.chandan.rubato.util.LibraryDedupeUtil;
 import one.chandan.rubato.util.SearchIndexUtil;
@@ -33,7 +35,7 @@ public class ArtistRepository {
 
         loadCachedStarredArtists(cacheKey, starredArtists, random, size);
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             return starredArtists;
         }
 
@@ -43,8 +45,17 @@ public class ArtistRepository {
                 .enqueue(new Callback<ApiResponse>() {
                     @Override
                     public void onResponse(@NonNull Call<ApiResponse> call, @NonNull Response<ApiResponse> response) {
-                        if (response.isSuccessful() && response.body() != null && response.body().getSubsonicResponse().getStarred2() != null) {
-                            List<ArtistID3> artists = response.body().getSubsonicResponse().getStarred2().getArtists();
+                        if (response.isSuccessful() && response.body() != null) {
+                            SubsonicResponse subsonicResponse = response.body().getSubsonicResponse();
+                            List<ArtistID3> artists = null;
+
+                            if (subsonicResponse != null && subsonicResponse.getStarred2() != null) {
+                                artists = subsonicResponse.getStarred2().getArtists();
+                            }
+
+                            if (artists == null && subsonicResponse != null && subsonicResponse.getStarred() != null) {
+                                artists = mapLegacyStarredArtists(subsonicResponse.getStarred().getArtists());
+                            }
 
                             if (artists != null) {
                                 cacheRepository.save(cacheKey, artists);
@@ -75,7 +86,7 @@ public class ArtistRepository {
         MutableLiveData<List<ArtistID3>> listLiveArtists = new MutableLiveData<>();
         String cacheKey = "artists_all";
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedArtists(cacheKey, listLiveArtists, random, size);
             mergeJellyfinArtists(listLiveArtists);
             return listLiveArtists;
@@ -134,7 +145,7 @@ public class ArtistRepository {
         if (liveArtists == null) liveArtists = new ArrayList<>();
         list.setValue(liveArtists);
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedArtistsForSelection(artists, list);
             return;
         }
@@ -180,7 +191,7 @@ public class ArtistRepository {
             return artist;
         }
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedArtistFromAll(id, artist);
             return artist;
         }
@@ -219,7 +230,7 @@ public class ArtistRepository {
             return artistFullInfo;
         }
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedArtistInfo(cacheKey, artistFullInfo);
             return artistFullInfo;
         }
@@ -250,6 +261,7 @@ public class ArtistRepository {
     }
 
     public void setRating(String id, int rating) {
+        if (OfflinePolicy.isOffline()) return;
         App.getSubsonicClientInstance(false)
                 .getMediaAnnotationClient()
                 .setRating(id, rating)
@@ -280,7 +292,7 @@ public class ArtistRepository {
             return artist;
         }
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedArtist(cacheKey, artist);
             loadCachedArtistFromAll(id, artist);
             return artist;
@@ -315,6 +327,11 @@ public class ArtistRepository {
     public MutableLiveData<List<Child>> getInstantMix(ArtistID3 artist, int count) {
         MutableLiveData<List<Child>> instantMix = new MutableLiveData<>();
 
+        if (artist == null || artist.getId() == null || artist.getId().trim().isEmpty()) {
+            instantMix.postValue(new ArrayList<>());
+            return instantMix;
+        }
+
         if (artist != null && LocalMusicRepository.isLocalArtistId(artist.getId())) {
             LocalMusicRepository.getLocalArtistSongs(App.getContext(), artist.getId(), instantMix::postValue);
             return instantMix;
@@ -342,12 +359,14 @@ public class ArtistRepository {
                     public void onResponse(@NonNull Call<ApiResponse> call, @NonNull Response<ApiResponse> response) {
                         if (response.isSuccessful() && response.body() != null && response.body().getSubsonicResponse().getSimilarSongs2() != null) {
                             instantMix.setValue(response.body().getSubsonicResponse().getSimilarSongs2().getSongs());
+                            return;
                         }
+                        instantMix.setValue(new ArrayList<>());
                     }
 
                     @Override
                     public void onFailure(@NonNull Call<ApiResponse> call, @NonNull Throwable t) {
-
+                        instantMix.setValue(new ArrayList<>());
                     }
                 });
 
@@ -385,7 +404,7 @@ public class ArtistRepository {
             return randomSongs;
         }
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedSongsForArtist(artist, count, true, randomSongs, false);
             return randomSongs;
         }
@@ -418,9 +437,9 @@ public class ArtistRepository {
     }
 
     public MutableLiveData<List<Child>> getTopSongs(String artistName, int count) {
-        MutableLiveData<List<Child>> topSongs = new MutableLiveData<>(new ArrayList<>());
+        MutableLiveData<List<Child>> topSongs = new MutableLiveData<>();
 
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             loadCachedSongsForArtistName(artistName, count, topSongs);
             return topSongs;
         }
@@ -431,7 +450,9 @@ public class ArtistRepository {
                 .enqueue(new Callback<ApiResponse>() {
                     @Override
                     public void onResponse(@NonNull Call<ApiResponse> call, @NonNull Response<ApiResponse> response) {
-                        if (response.isSuccessful() && response.body() != null && response.body().getSubsonicResponse().getTopSongs() != null && response.body().getSubsonicResponse().getTopSongs().getSongs() != null) {
+                        if (response.isSuccessful() && response.body() != null
+                                && response.body().getSubsonicResponse().getTopSongs() != null
+                                && response.body().getSubsonicResponse().getTopSongs().getSongs() != null) {
                             List<Child> songs = response.body().getSubsonicResponse().getTopSongs().getSongs();
                             LocalMusicRepository.getLocalArtistSongsByName(App.getContext(), artistName, localSongs -> {
                                 List<Child> merged = new ArrayList<>(songs != null ? songs : new ArrayList<>());
@@ -441,12 +462,14 @@ public class ArtistRepository {
                                 topSongs.setValue(merged);
                                 mergeJellyfinSongsByName(artistName, merged, topSongs);
                             });
+                        } else {
+                            topSongs.setValue(new ArrayList<>());
                         }
                     }
 
                     @Override
                     public void onFailure(@NonNull Call<ApiResponse> call, @NonNull Throwable t) {
-
+                        topSongs.setValue(new ArrayList<>());
                     }
                 });
 
@@ -550,6 +573,20 @@ public class ArtistRepository {
                 loadCachedArtistsForSelection(selection, listLiveArtists);
             }
         });
+    }
+
+    private List<ArtistID3> mapLegacyStarredArtists(List<Artist> legacyArtists) {
+        if (legacyArtists == null) return null;
+        List<ArtistID3> mapped = new ArrayList<>();
+        for (Artist legacy : legacyArtists) {
+            if (legacy == null) continue;
+            ArtistID3 artist = new ArtistID3();
+            artist.setId(legacy.getId());
+            artist.setName(legacy.getName());
+            artist.setStarred(legacy.getStarred());
+            mapped.add(artist);
+        }
+        return mapped;
     }
 
     private void loadCachedArtistsForSelection(List<ArtistID3> selection, MutableLiveData<List<ArtistID3>> list) {
