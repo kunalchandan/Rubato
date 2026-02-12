@@ -1,4 +1,6 @@
-apply plugin: 'com.android.application'
+plugins {
+    id 'com.android.application'
+}
 
 android {
     compileSdk = 35
@@ -21,6 +23,10 @@ android {
                 ]
             }
         }
+
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
     }
 
     buildTypes {
@@ -37,7 +43,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-
     buildFeatures {
         viewBinding = true
         buildConfig = true
@@ -50,22 +55,26 @@ android {
                 pixel2Api29 {
                     device = "Pixel 2"
                     apiLevel = 29
-                    systemImageSource = "aosp"
+                    systemImageSource = "google_apis"
+                    testedAbi = "x86"
                 }
                 pixel6Api33 {
                     device = "Pixel 6"
                     apiLevel = 33
-                    systemImageSource = "aosp"
+                    systemImageSource = "google_apis"
+                    testedAbi = "x86_64"
                 }
                 pixel7Api35 {
                     device = "Pixel 7"
                     apiLevel = 35
-                    systemImageSource = "aosp"
+                    systemImageSource = "google_apis"
+                    testedAbi = "x86_64"
                 }
                 pixelTabletApi34 {
                     device = "Pixel Tablet"
                     apiLevel = 34
-                    systemImageSource = "aosp"
+                    systemImageSource = "google_apis"
+                    testedAbi = "x86_64"
                 }
                 automotiveApi34 {
                     device = "Automotive (1024p landscape)"
@@ -76,19 +85,26 @@ android {
         }
     }
 
+    lint {
+        baseline = file("lint-baseline.xml")
+    }
+
     packagingOptions {
         jniLibs {
             keepDebugSymbols += ['**/libffmpegJNI.so']
         }
     }
 
-    namespace = 'one.chandan.rubato'
-}
-
-configurations {
-    parcelizeCompiler {
-        transitive = false
+    splits {
+        abi {
+            enable true
+            reset()
+            include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+            universalApk true
+        }
     }
+
+    namespace = 'one.chandan.rubato'
 }
 
 dependencies {
@@ -109,6 +125,7 @@ dependencies {
     implementation 'androidx.core:core-splashscreen:1.0.1'
     implementation 'androidx.appcompat:appcompat:1.7.0'
     implementation 'androidx.documentfile:documentfile:1.0.1'
+    implementation 'androidx.work:work-runtime:2.9.0'
 
     // Android Material
     implementation 'com.google.android.material:material:1.10.0'
@@ -127,8 +144,7 @@ dependencies {
 
     annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
     annotationProcessor 'androidx.room:room-compiler:2.8.4'
-    implementation 'org.jetbrains.kotlin:kotlin-parcelize-runtime:2.2.10'
-    parcelizeCompiler 'org.jetbrains.kotlin:kotlin-parcelize-compiler:2.2.10'
+    implementation 'androidx.security:security-crypto:1.1.0-alpha06'
 
     // Retrofit
     implementation 'com.squareup.retrofit2:retrofit:2.11.0'
@@ -142,6 +158,8 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
     debugImplementation 'androidx.fragment:fragment-testing:1.8.6'
+    implementation 'org.jetbrains.kotlin:kotlin-parcelize-runtime:2.2.10'
+    kotlinCompilerPluginClasspath 'org.jetbrains.kotlin:kotlin-parcelize-compiler:2.2.10'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -149,9 +167,13 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-    kotlinOptions.freeCompilerArgs += [
-            "-Xplugin=${configurations.parcelizeCompiler.singleFile}"
-    ]
+    compilerOptions.freeCompilerArgs.addAll(
+            providers.provider {
+                configurations.kotlinCompilerPluginClasspath.files.findAll {
+                    it.name.contains("kotlin-parcelize-compiler")
+                }.collect { file -> "-Xplugin=${file.absolutePath}" }
+            }
+    )
 }
 
 tasks.register("generateMockups") {

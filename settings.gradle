@@ -1,2 +1,10 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
 include ':app', ':benchmark'
-rootProject.name = "Tempo"
+rootProject.name = "Rubato"
