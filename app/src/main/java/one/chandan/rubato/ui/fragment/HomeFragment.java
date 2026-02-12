@@ -70,7 +70,9 @@ public class HomeFragment extends Fragment {
         activity.setBottomNavigationBarVisibility(true);
         activity.setBottomSheetVisibility(true);
         App.getInstance().getPreferences().registerOnSharedPreferenceChangeListener(sectionVisibilityListener);
-        rebuildHomePager();
+        if (needsPagerRefresh()) {
+            rebuildHomePager();
+        }
     }
 
     @Override
@@ -118,6 +120,33 @@ public class HomeFragment extends Fragment {
         bind.homeViewPager.setUserInputEnabled(false);
 
         attachTabs(homePager);
+    }
+
+    private boolean needsPagerRefresh() {
+        if (homePager == null) {
+            return true;
+        }
+        boolean wantsPodcast = Preferences.isPodcastSectionVisible();
+        boolean wantsRadio = Preferences.isRadioSectionVisible();
+        int expectedCount = 1 + (wantsPodcast ? 1 : 0) + (wantsRadio ? 1 : 0);
+        if (homePager.getItemCount() != expectedCount) {
+            return true;
+        }
+        boolean hasPodcast = hasTabTitle("Podcast");
+        boolean hasRadio = hasTabTitle("Radio");
+        return hasPodcast != wantsPodcast || hasRadio != wantsRadio;
+    }
+
+    private boolean hasTabTitle(String title) {
+        if (homePager == null || title == null) {
+            return false;
+        }
+        for (int i = 0; i < homePager.getItemCount(); i++) {
+            if (title.equals(homePager.getPageTitle(i))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void rebuildHomePager() {

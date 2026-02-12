@@ -34,8 +34,7 @@ import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.DownloadUtil;
 import one.chandan.rubato.util.MappingUtil;
 import one.chandan.rubato.util.MusicUtil;
-import one.chandan.rubato.util.NetworkUtil;
-import one.chandan.rubato.util.OfflineMediaUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.Preferences;
 import one.chandan.rubato.viewmodel.HomeViewModel;
 import one.chandan.rubato.viewmodel.SongBottomSheetViewModel;
@@ -80,8 +79,7 @@ public class SongBottomSheetDialog extends BottomSheetDialogFragment implements 
     }
 
     private void init(View view) {
-        boolean isOffline = NetworkUtil.isOffline();
-        boolean isPlayable = OfflineMediaUtil.isPlayable(requireContext(), song);
+        boolean isPlayable = OfflinePolicy.canPlay(requireContext(), song);
         boolean isDownloaded = LocalMusicRepository.isLocalSong(song)
                 || DownloadUtil.getDownloadTracker(requireContext()).isDownloaded(song.getId());
 
@@ -135,7 +133,7 @@ public class SongBottomSheetDialog extends BottomSheetDialogFragment implements 
                 }
             });
         });
-        setActionEnabled(playRadio, !isOffline);
+        setActionEnabled(playRadio, OfflinePolicy.canPlayRadio());
 
         TextView playNext = view.findViewById(R.id.play_next_text_view);
         playNext.setOnClickListener(v -> {
@@ -164,7 +162,7 @@ public class SongBottomSheetDialog extends BottomSheetDialogFragment implements 
 
             dismissBottomSheet();
         });
-        setActionEnabled(rate, !isOffline);
+        setActionEnabled(rate, OfflinePolicy.canRate());
 
         TextView download = view.findViewById(R.id.download_text_view);
         download.setOnClickListener(v -> {
@@ -184,7 +182,7 @@ public class SongBottomSheetDialog extends BottomSheetDialogFragment implements 
             dismissBottomSheet();
         });
 
-        initDownloadUI(download, remove, isOffline, isDownloaded);
+        initDownloadUI(download, remove, isDownloaded);
 
         TextView addToPlaylist = view.findViewById(R.id.add_to_playlist_text_view);
         addToPlaylist.setOnClickListener(v -> {
@@ -197,7 +195,7 @@ public class SongBottomSheetDialog extends BottomSheetDialogFragment implements 
 
             dismissBottomSheet();
         });
-        setActionEnabled(addToPlaylist, !isOffline);
+        setActionEnabled(addToPlaylist, OfflinePolicy.canAddToPlaylist());
 
         TextView goToAlbum = view.findViewById(R.id.go_to_album_text_view);
         goToAlbum.setOnClickListener(v -> songBottomSheetViewModel.getAlbum().observe(getViewLifecycleOwner(), album -> {
@@ -243,7 +241,7 @@ public class SongBottomSheetDialog extends BottomSheetDialogFragment implements 
 
         share.setVisibility(Preferences.isSharingEnabled() ? View.VISIBLE : View.GONE);
         if (share.getVisibility() == View.VISIBLE) {
-            setActionEnabled(share, !isOffline);
+            setActionEnabled(share, OfflinePolicy.canShare());
         }
     }
 
@@ -256,7 +254,7 @@ public class SongBottomSheetDialog extends BottomSheetDialogFragment implements 
         dismiss();
     }
 
-    private void initDownloadUI(TextView download, TextView remove, boolean isOffline, boolean isDownloaded) {
+    private void initDownloadUI(TextView download, TextView remove, boolean isDownloaded) {
         if (LocalMusicRepository.isLocalSong(song)) {
             download.setVisibility(View.GONE);
             remove.setVisibility(View.GONE);
@@ -268,7 +266,7 @@ public class SongBottomSheetDialog extends BottomSheetDialogFragment implements 
         } else {
             download.setVisibility(View.VISIBLE);
             remove.setVisibility(View.GONE);
-            setActionEnabled(download, !isOffline);
+            setActionEnabled(download, OfflinePolicy.canDownload(song));
         }
     }
 

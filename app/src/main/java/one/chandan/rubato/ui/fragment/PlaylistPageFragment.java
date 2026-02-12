@@ -13,6 +13,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.ImageView;
 import android.widget.SearchView;
 
 import androidx.annotation.NonNull;
@@ -38,7 +39,6 @@ import one.chandan.rubato.glide.CustomGlideRequest;
 import one.chandan.rubato.helper.recyclerview.QueueSwipeHelper;
 import one.chandan.rubato.interfaces.ClickCallback;
 import one.chandan.rubato.model.Download;
-import one.chandan.rubato.repository.LocalMusicRepository;
 import one.chandan.rubato.service.MediaManager;
 import one.chandan.rubato.service.MediaService;
 import one.chandan.rubato.subsonic.models.Child;
@@ -49,8 +49,7 @@ import one.chandan.rubato.util.DownloadUtil;
 import one.chandan.rubato.util.FavoriteUtil;
 import one.chandan.rubato.util.MappingUtil;
 import one.chandan.rubato.util.MusicUtil;
-import one.chandan.rubato.util.NetworkUtil;
-import one.chandan.rubato.util.OfflineMediaUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.PlaylistCoverCache;
 import one.chandan.rubato.util.SearchIndexUtil;
 import one.chandan.rubato.viewmodel.PlaylistPageViewModel;
@@ -151,7 +150,7 @@ public class PlaylistPageFragment extends Fragment implements ClickCallback {
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if (item.getItemId() == R.id.action_download_playlist) {
-            if (NetworkUtil.isOffline()) {
+            if (OfflinePolicy.isOffline()) {
                 if (bind != null) {
                     Snackbar.make(bind.getRoot(), getString(R.string.queue_add_next_unavailable_offline), Snackbar.LENGTH_SHORT).show();
                 }
@@ -230,9 +229,9 @@ public class PlaylistPageFragment extends Fragment implements ClickCallback {
         playlistSongsLive.observe(getViewLifecycleOwner(), songs -> {
             if (bind != null) {
                 bind.playlistPagePlayButton.setOnClickListener(v -> {
-                    List<Child> playable = OfflineMediaUtil.filterPlayable(requireContext(), songs);
+                    List<Child> playable = OfflinePolicy.filterPlayable(requireContext(), songs);
                     if (playable.isEmpty()) {
-                        if (NetworkUtil.isOffline()) {
+                        if (OfflinePolicy.isOffline()) {
                             Snackbar.make(bind.getRoot(), getString(R.string.queue_add_next_unavailable_offline), Snackbar.LENGTH_SHORT).show();
                         }
                         return;
@@ -243,9 +242,9 @@ public class PlaylistPageFragment extends Fragment implements ClickCallback {
                 });
 
                 bind.playlistPageShuffleButton.setOnClickListener(v -> {
-                    List<Child> playable = OfflineMediaUtil.filterPlayable(requireContext(), songs);
+                    List<Child> playable = OfflinePolicy.filterPlayable(requireContext(), songs);
                     if (playable.isEmpty()) {
-                        if (NetworkUtil.isOffline()) {
+                        if (OfflinePolicy.isOffline()) {
                             Snackbar.make(bind.getRoot(), getString(R.string.queue_add_next_unavailable_offline), Snackbar.LENGTH_SHORT).show();
                         }
                         return;
@@ -256,7 +255,7 @@ public class PlaylistPageFragment extends Fragment implements ClickCallback {
                     MediaManager.startQueue(mediaBrowserListenableFuture, limited, 0);
                     activity.setBottomSheetInPeek(true);
                 });
-                boolean hasPlayable = OfflineMediaUtil.hasPlayable(requireContext(), songs);
+                boolean hasPlayable = OfflinePolicy.hasPlayable(requireContext(), songs);
                 bind.playlistPagePlayButton.setEnabled(hasPlayable);
                 bind.playlistPageShuffleButton.setEnabled(hasPlayable);
             }
@@ -277,38 +276,34 @@ public class PlaylistPageFragment extends Fragment implements ClickCallback {
                 AtomicInteger pending = new AtomicInteger(4);
                 AtomicBoolean saved = new AtomicBoolean(false);
 
-                // Pic top-left
-                CustomGlideRequest.Builder
-                        .from(requireContext(), resolveCoverArtId(coverSongs, 0, fallbackCover), CustomGlideRequest.ResourceType.Song)
-                        .build()
-                        .listener(createCoverListener(0, collageDrawables, pending, saved, shouldPersist, playlistId))
-                        .transform(new GranularRoundedCorners(CustomGlideRequest.getCornerRadius(CustomGlideRequest.ResourceType.Song), 0, 0, 0))
-                        .into(bind.playlistCoverImageViewTopLeft);
-
-                // Pic top-right
-                CustomGlideRequest.Builder
-                        .from(requireContext(), resolveCoverArtId(coverSongs, 1, fallbackCover), CustomGlideRequest.ResourceType.Song)
-                        .build()
-                        .listener(createCoverListener(1, collageDrawables, pending, saved, shouldPersist, playlistId))
-                        .transform(new GranularRoundedCorners(0, CustomGlideRequest.getCornerRadius(CustomGlideRequest.ResourceType.Song), 0, 0))
-                        .into(bind.playlistCoverImageViewTopRight);
-
-                // Pic bottom-left
-                CustomGlideRequest.Builder
-                        .from(requireContext(), resolveCoverArtId(coverSongs, 2, fallbackCover), CustomGlideRequest.ResourceType.Song)
-                        .build()
-                        .listener(createCoverListener(2, collageDrawables, pending, saved, shouldPersist, playlistId))
-                        .transform(new GranularRoundedCorners(0, 0, 0, CustomGlideRequest.getCornerRadius(CustomGlideRequest.ResourceType.Song)))
-                        .into(bind.playlistCoverImageViewBottomLeft);
-
-                // Pic bottom-right
-                CustomGlideRequest.Builder
-                        .from(requireContext(), resolveCoverArtId(coverSongs, 3, fallbackCover), CustomGlideRequest.ResourceType.Song)
-                        .build()
-                        .listener(createCoverListener(3, collageDrawables, pending, saved, shouldPersist, playlistId))
-                        .transform(new GranularRoundedCorners(0, 0, CustomGlideRequest.getCornerRadius(CustomGlideRequest.ResourceType.Song), 0))
-                        .into(bind.playlistCoverImageViewBottomRight);
+                loadCollageCover(bind.playlistCoverImageViewTopLeft, resolveCoverArtId(coverSongs, 0, fallbackCover), 0,
+                        collageDrawables, pending, saved, shouldPersist, playlistId);
+                loadCollageCover(bind.playlistCoverImageViewTopRight, resolveCoverArtId(coverSongs, 1, fallbackCover), 1,
+                        collageDrawables, pending, saved, shouldPersist, playlistId);
+                loadCollageCover(bind.playlistCoverImageViewBottomLeft, resolveCoverArtId(coverSongs, 2, fallbackCover), 2,
+                        collageDrawables, pending, saved, shouldPersist, playlistId);
+                loadCollageCover(bind.playlistCoverImageViewBottomRight, resolveCoverArtId(coverSongs, 3, fallbackCover), 3,
+                        collageDrawables, pending, saved, shouldPersist, playlistId);
             }
+        });
+    }
+
+    private void loadCollageCover(ImageView target, String coverId, int cornerIndex,
+                                  Drawable[] collageDrawables, AtomicInteger pending, AtomicBoolean saved,
+                                  boolean shouldPersist, String playlistId) {
+        target.post(() -> {
+            int radius = CustomGlideRequest.getCornerRadiusPx(target.getWidth(), target.getHeight(), CustomGlideRequest.ResourceType.Song);
+            float topLeft = cornerIndex == 0 ? radius : 0;
+            float topRight = cornerIndex == 1 ? radius : 0;
+            float bottomRight = cornerIndex == 3 ? radius : 0;
+            float bottomLeft = cornerIndex == 2 ? radius : 0;
+
+            CustomGlideRequest.Builder
+                    .from(requireContext(), coverId, CustomGlideRequest.ResourceType.Song)
+                    .build()
+                    .listener(createCoverListener(cornerIndex, collageDrawables, pending, saved, shouldPersist, playlistId))
+                    .transform(new GranularRoundedCorners(topLeft, topRight, bottomRight, bottomLeft))
+                    .into(target);
         });
     }
 
@@ -415,7 +410,7 @@ public class PlaylistPageFragment extends Fragment implements ClickCallback {
 
             @Override
             public boolean isLongPressDragEnabled() {
-                if (NetworkUtil.isOffline()) return false;
+                if (OfflinePolicy.isOffline()) return false;
                 return playlistPageViewModel == null
                         || playlistPageViewModel.getPlaylist() == null
                         || !SearchIndexUtil.isJellyfinTagged(playlistPageViewModel.getPlaylist().getId());
@@ -437,7 +432,7 @@ public class PlaylistPageFragment extends Fragment implements ClickCallback {
 
             @Override
             public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
-                if (NetworkUtil.isOffline()) return false;
+                if (OfflinePolicy.isOffline()) return false;
                 if (playlistPageViewModel != null && playlistPageViewModel.getPlaylist() != null
                         && SearchIndexUtil.isJellyfinTagged(playlistPageViewModel.getPlaylist().getId())) {
                     return false;
@@ -453,7 +448,7 @@ public class PlaylistPageFragment extends Fragment implements ClickCallback {
             @Override
             public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
                 super.clearView(recyclerView, viewHolder);
-                if (NetworkUtil.isOffline()) {
+                if (OfflinePolicy.isOffline()) {
                     if (bind != null) {
                         Snackbar.make(bind.getRoot(), getString(R.string.playlist_reorder_offline), Snackbar.LENGTH_SHORT).show();
                     }
@@ -500,9 +495,7 @@ public class PlaylistPageFragment extends Fragment implements ClickCallback {
                         Snackbar.make(bind.getRoot(), getString(starred ? R.string.favorite_added : R.string.favorite_removed), Snackbar.LENGTH_SHORT).show();
                     }
                 } else {
-                    boolean isLocal = LocalMusicRepository.isLocalSong(song);
-                    boolean isDownloaded = isLocal || DownloadUtil.getDownloadTracker(requireContext()).isDownloaded(song.getId());
-                    if (NetworkUtil.isOffline() && !isDownloaded) {
+                    if (!OfflinePolicy.canQueue(requireContext(), song)) {
                         if (bind != null) {
                             Snackbar.make(bind.getRoot(), getString(R.string.queue_add_next_unavailable_offline), Snackbar.LENGTH_SHORT).show();
                         }

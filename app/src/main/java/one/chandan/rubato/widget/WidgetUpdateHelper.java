@@ -194,7 +194,7 @@ public final class WidgetUpdateHelper {
             coverArtId = resolveFallbackCover(state);
         }
         if (TextUtils.isEmpty(coverArtId)) {
-            views.setImageViewResource(R.id.widget_circle_cover, R.drawable.ic_splash_logo_rubato);
+            views.setImageViewResource(R.id.widget_circle_cover, R.drawable.ic_rubato_logo);
             manager.updateAppWidget(appWidgetId, views);
             return;
         }
@@ -206,7 +206,7 @@ public final class WidgetUpdateHelper {
                 coverArtId,
                 one.chandan.rubato.glide.CustomGlideRequest.ResourceType.Album,
                 true,
-                R.drawable.ic_splash_logo_rubato
+                R.drawable.ic_rubato_logo
         );
     }
 

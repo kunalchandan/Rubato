@@ -81,7 +81,7 @@
                 <ImageView
                     android:layout_width="24dp"
                     android:layout_height="24dp"
-                    android:background="@drawable/ic_graphic_eq" />
+                    android:background="@drawable/ic_brush" />
 
                 <TextView
                     style="@style/TitleSmall"

@@ -1,6 +1,7 @@
 package one.chandan.rubato.glide;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.Path;
@@ -10,6 +11,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.content.res.AppCompatResources;
 
@@ -19,6 +21,12 @@ import com.bumptech.glide.RequestManager;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.bumptech.glide.load.resource.bitmap.CenterCrop;
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
+import com.bumptech.glide.load.resource.bitmap.TransformationUtils;
+import com.bumptech.glide.load.engine.bitmap_recycle.BitmapPool;
+import com.bumptech.glide.load.resource.bitmap.BitmapTransformation;
+import com.bumptech.glide.load.Key;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions;
 import com.bumptech.glide.request.RequestOptions;
 import com.bumptech.glide.signature.ObjectKey;
@@ -52,23 +60,24 @@ public class CustomGlideRequest {
     }
 
     public static RequestOptions createRequestOptions(Context context, String item, ResourceType type) {
-        int cornerRadius = getCornerRadius(type);
-        Drawable placeholder = wrapRounded(new ColorDrawable(SurfaceColors.SURFACE_5.getColor(context)), cornerRadius);
-        Drawable fallback = wrapRounded(getPlaceholder(context, type), cornerRadius);
+        float cornerRatio = getCornerRatio(type);
+        Drawable placeholder = wrapRounded(new ColorDrawable(SurfaceColors.SURFACE_5.getColor(context)), cornerRatio);
+        Drawable fallback = wrapRounded(getPlaceholder(context, type), cornerRatio);
+        String normalizedItem = normalizeLocalTag(item);
         RequestOptions options = new RequestOptions()
                 .placeholder(placeholder)
                 .fallback(fallback)
                 .error(fallback)
                 .diskCacheStrategy(DEFAULT_DISK_CACHE_STRATEGY)
-                .signature(new ObjectKey(item != null ? item : 0));
+                .signature(new ObjectKey(normalizedItem != null ? normalizedItem : 0));
 
-        if (cornerRadius > 0) {
-            options = options.transform(new CenterCrop(), new RoundedCorners(cornerRadius));
+        if (cornerRatio > 0f) {
+            options = options.transform(new CenterCrop(), new RelativeRoundedCorners(cornerRatio));
         } else {
             options = options.transform(new CenterCrop());
         }
 
-        if (NetworkUtil.isOffline()) {
+        if (NetworkUtil.isOffline() && (normalizedItem == null || !isLocalUri(normalizedItem))) {
             options = options.onlyRetrieveFromCache(true);
         }
 
@@ -76,11 +85,11 @@ public class CustomGlideRequest {
     }
 
     @Nullable
-    private static Drawable wrapRounded(@Nullable Drawable drawable, int radius) {
-        if (drawable == null || radius <= 0) {
+    private static Drawable wrapRounded(@Nullable Drawable drawable, float ratio) {
+        if (drawable == null || ratio <= 0f) {
             return drawable;
         }
-        return new RoundedDrawable(drawable, radius);
+        return new RoundedDrawable(drawable, ratio);
     }
 
     @Nullable
@@ -109,13 +118,20 @@ public class CustomGlideRequest {
         }
     }
 
+    @Nullable
+    public static Drawable getPlaceholderDrawable(Context context, ResourceType type) {
+        if (context == null) return null;
+        return wrapRounded(getPlaceholder(context, type), getCornerRatio(type));
+    }
+
     public static String createUrl(String item, int size) {
         if (item == null) return null;
-        if (isLocalUri(item)) {
-            return item;
+        String normalizedItem = normalizeLocalTag(item);
+        if (isLocalUri(normalizedItem)) {
+            return normalizedItem;
         }
-        if (SearchIndexUtil.isJellyfinTagged(item)) {
-            return JellyfinMediaUtil.buildImageUrl(item, size);
+        if (SearchIndexUtil.isJellyfinTagged(normalizedItem)) {
+            return JellyfinMediaUtil.buildImageUrl(normalizedItem, size);
         }
         Map<String, String> params = App.getSubsonicClientInstance(false).getParams();
 
@@ -139,7 +155,7 @@ public class CustomGlideRequest {
         if (size != -1)
             uri.append("&size=").append(size);
 
-        uri.append("&id=").append(item);
+        uri.append("&id=").append(normalizedItem);
 
         Log.d(TAG, "createUrl() " + uri);
 
@@ -152,16 +168,17 @@ public class CustomGlideRequest {
 
         private Builder(Context context, String item, ResourceType type) {
             this.requestManager = Glide.with(context);
+            String normalizedItem = normalizeLocalTag(item);
 
-            if (item != null) {
-                if (isLocalUri(item)) {
-                    this.item = item;
+            if (normalizedItem != null) {
+                if (isLocalUri(normalizedItem)) {
+                    this.item = normalizedItem;
                 } else if (!Preferences.isDataSavingMode()) {
-                    this.item = createUrl(item, Preferences.getImageSize());
+                    this.item = createUrl(normalizedItem, Preferences.getImageSize());
                 }
             }
 
-            requestManager.applyDefaultRequestOptions(createRequestOptions(context, item, type));
+            requestManager.applyDefaultRequestOptions(createRequestOptions(context, normalizedItem, type));
         }
 
         public static Builder from(Context context, String item, ResourceType type) {
@@ -177,13 +194,14 @@ public class CustomGlideRequest {
 
     private static final class RoundedDrawable extends Drawable {
         private final Drawable inner;
-        private final float radius;
+        private final float ratio;
+        private float radius;
         private final RectF rect = new RectF();
         private final Path path = new Path();
 
-        private RoundedDrawable(Drawable inner, float radius) {
+        private RoundedDrawable(Drawable inner, float ratio) {
             this.inner = inner;
-            this.radius = radius;
+            this.ratio = ratio;
         }
 
         @Override
@@ -191,6 +209,8 @@ public class CustomGlideRequest {
             inner.setBounds(bounds);
             rect.set(bounds);
             path.reset();
+            float minSize = Math.min(rect.width(), rect.height());
+            radius = Math.max(1f, minSize * ratio);
             path.addRoundRect(rect, radius, radius, Path.Direction.CW);
         }
 
@@ -234,33 +254,75 @@ public class CustomGlideRequest {
                 || item.startsWith("android.resource://");
     }
 
-    public static int getCornerRadius(ResourceType type) {
-        int radius = Preferences.getRoundedCornerSize();
-        if (radius <= 0) {
-            radius = 1;
+    private static String normalizeLocalTag(String item) {
+        if (item == null) return null;
+        if (SearchIndexUtil.isSourceTagged(item, SearchIndexUtil.SOURCE_LOCAL)) {
+            String prefix = SearchIndexUtil.SOURCE_LOCAL + ":";
+            return item.startsWith(prefix) ? item.substring(prefix.length()) : item;
         }
+        return item;
+    }
 
-        int pxRadius = Math.round(radius * App.getInstance().getResources().getDisplayMetrics().density);
-        if (pxRadius <= 0) {
-            pxRadius = 1;
-        }
-
+    public static float getCornerRatio(ResourceType type) {
         if (type == ResourceType.NowPlaying) {
+            return 0f;
+        }
+        if (!Preferences.isCornerRoundingEnabled()) {
+            return 0f;
+        }
+        int dp = Preferences.getRoundedCornerSize();
+        float ratio = dp / 100f;
+        ratio = Math.max(0.08f, Math.min(0.45f, ratio));
+        if (type == ResourceType.Folder || type == ResourceType.Directory) {
+            ratio = Math.max(0.04f, ratio * 0.8f);
+        }
+        return ratio;
+    }
+
+    public static int getCornerRadiusPx(int widthPx, int heightPx, ResourceType type) {
+        float ratio = getCornerRatio(type);
+        if (ratio <= 0f || widthPx <= 0 || heightPx <= 0) {
             return 0;
         }
+        int radius = Math.round(Math.min(widthPx, heightPx) * ratio);
+        return Math.max(1, radius);
+    }
 
-        if (type == ResourceType.Folder || type == ResourceType.Directory) {
-            return Preferences.isCornerRoundingEnabled() ? pxRadius : 1;
+    private static final class RelativeRoundedCorners extends BitmapTransformation {
+        private static final String ID = "one.chandan.rubato.glide.RelativeRoundedCorners";
+        private final float ratio;
+
+        RelativeRoundedCorners(float ratio) {
+            this.ratio = ratio;
         }
 
-        if (!Preferences.isCornerRoundingEnabled()) {
-            return 1;
+        @Override
+        protected Bitmap transform(@NonNull BitmapPool pool, @NonNull Bitmap toTransform, int outWidth, int outHeight) {
+            if (ratio <= 0f) {
+                return toTransform;
+            }
+            int radius = Math.max(1, Math.round(Math.min(toTransform.getWidth(), toTransform.getHeight()) * ratio));
+            return TransformationUtils.roundedCorners(pool, toTransform, radius);
         }
 
-        if (type == ResourceType.Album) {
-            return Math.max(1, pxRadius * 2);
+        @Override
+        public boolean equals(Object o) {
+            if (o instanceof RelativeRoundedCorners) {
+                RelativeRoundedCorners other = (RelativeRoundedCorners) o;
+                return Float.compare(other.ratio, ratio) == 0;
+            }
+            return false;
         }
 
-        return pxRadius;
+        @Override
+        public int hashCode() {
+            return ID.hashCode() * 31 + Float.floatToIntBits(ratio);
+        }
+
+        @Override
+        public void updateDiskCacheKey(@NonNull MessageDigest messageDigest) {
+            messageDigest.update(ID.getBytes(Key.CHARSET));
+            messageDigest.update(ByteBuffer.allocate(4).putFloat(ratio).array());
+        }
     }
 }

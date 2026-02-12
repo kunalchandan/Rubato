@@ -1,6 +1,7 @@
 package one.chandan.rubato.ui.dialog;
 
 import android.app.Dialog;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
@@ -44,6 +45,7 @@ public class JellyfinServerDialog extends DialogFragment {
     private boolean librariesLoaded;
     private String loadedServer;
     private String loadedUsername;
+    private boolean inLibraryStep = false;
 
     @NonNull
     @Override
@@ -66,6 +68,7 @@ public class JellyfinServerDialog extends DialogFragment {
         setServerInfo();
         initLibraryDropdown();
         setButtonAction();
+        showCredentialsStep();
     }
 
     @Override
@@ -131,22 +134,24 @@ public class JellyfinServerDialog extends DialogFragment {
         androidx.appcompat.app.AlertDialog alertDialog = (androidx.appcompat.app.AlertDialog) Objects.requireNonNull(getDialog());
 
         alertDialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
-            if (validateInput()) {
-                if (librariesLoaded && !TextUtils.equals(server, loadedServer)) {
-                    librariesLoaded = false;
+            if (inLibraryStep) {
+                if (ensureLibrarySelected()) {
+                    saveServer(pendingToken, pendingUserId, new JellyfinView(selectedLibraryId, selectedLibraryName, "music"));
                 }
-                if (librariesLoaded && !TextUtils.equals(username, loadedUsername)) {
-                    librariesLoaded = false;
-                }
-                if (librariesLoaded) {
-                    if (ensureLibrarySelected()) {
-                        saveServer(pendingToken, pendingUserId, new JellyfinView(selectedLibraryId, selectedLibraryName, "music"));
-                    }
-                } else {
-                    setLoading(true);
-                    authenticateAndLoadLibraries();
-                }
+                return;
             }
+
+            if (!validateInput()) {
+                return;
+            }
+            if (librariesLoaded && !TextUtils.equals(server, loadedServer)) {
+                librariesLoaded = false;
+            }
+            if (librariesLoaded && !TextUtils.equals(username, loadedUsername)) {
+                librariesLoaded = false;
+            }
+            setLoading(true);
+            authenticateAndLoadLibraries();
         });
 
         alertDialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL)
@@ -254,16 +259,11 @@ public class JellyfinServerDialog extends DialogFragment {
                 loadedUsername = username;
                 librariesLoaded = true;
                 populateLibraryDropdown(musicViews);
-                if (musicViews.size() == 1) {
-                    if (ensureLibrarySelected()) {
-                        saveServer(pendingToken, pendingUserId, new JellyfinView(selectedLibraryId, selectedLibraryName, "music"));
-                    }
-                    return;
-                }
                 if (TextUtils.isEmpty(selectedLibraryId) || TextUtils.isEmpty(selectedLibraryName)) {
                     Toast.makeText(requireContext(), R.string.jellyfin_library_unselected, Toast.LENGTH_SHORT).show();
                 }
                 setLoading(false);
+                showLibraryStep();
             }
 
             @Override
@@ -320,15 +320,31 @@ public class JellyfinServerDialog extends DialogFragment {
     }
 
     private void saveServer(String token, String userId, JellyfinView view) {
+        if (view == null || TextUtils.isEmpty(view.getId()) || TextUtils.isEmpty(view.getName())) {
+            showError(getString(R.string.jellyfin_library_unselected));
+            return;
+        }
+        if (TextUtils.isEmpty(token) || TextUtils.isEmpty(userId)) {
+            showError(getString(R.string.jellyfin_auth_failed));
+            return;
+        }
+
+        String resolvedServerName = resolveServerName();
+        String resolvedServer = resolveServerAddress();
+        String resolvedUsername = resolveUsername();
+        if (TextUtils.isEmpty(resolvedServer)) {
+            showError(getString(R.string.error_required));
+            return;
+        }
         String serverId = viewModel.getServerToEdit() != null
                 ? viewModel.getServerToEdit().getId()
                 : UUID.randomUUID().toString();
 
         JellyfinServer jellyfinServer = new JellyfinServer(
                 serverId,
-                serverName,
-                server,
-                username,
+                resolvedServerName,
+                resolvedServer,
+                resolvedUsername,
                 token,
                 userId,
                 view.getId(),
@@ -347,7 +363,7 @@ public class JellyfinServerDialog extends DialogFragment {
             return;
         }
         selectedLibraryId = view.getId();
-        selectedLibraryName = view.getName();
+        selectedLibraryName = view.getName() != null ? view.getName() : "Music";
         if (updateText) {
             bind.libraryDropdown.setText(view.getName(), false);
         }
@@ -367,6 +383,96 @@ public class JellyfinServerDialog extends DialogFragment {
             dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE).setEnabled(!loading);
             dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setEnabled(!loading);
         }
+    }
+
+    private void showCredentialsStep() {
+        inLibraryStep = false;
+        if (bind != null) {
+            bind.jellyfinCredentialsContainer.setVisibility(View.VISIBLE);
+            bind.jellyfinLibraryContainer.setVisibility(View.GONE);
+        }
+        if (getDialog() instanceof androidx.appcompat.app.AlertDialog) {
+            androidx.appcompat.app.AlertDialog dialog = (androidx.appcompat.app.AlertDialog) getDialog();
+            dialog.setTitle(R.string.jellyfin_server_dialog_title);
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+                    .setText(R.string.jellyfin_server_dialog_positive_button);
+        }
+    }
+
+    private void showLibraryStep() {
+        inLibraryStep = true;
+        if (bind != null) {
+            bind.jellyfinCredentialsContainer.setVisibility(View.GONE);
+            bind.jellyfinLibraryContainer.setVisibility(View.VISIBLE);
+        }
+        if (getDialog() instanceof androidx.appcompat.app.AlertDialog) {
+            androidx.appcompat.app.AlertDialog dialog = (androidx.appcompat.app.AlertDialog) getDialog();
+            dialog.setTitle(R.string.jellyfin_select_library_title);
+            dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+                    .setText(R.string.jellyfin_server_dialog_save_button);
+        }
+    }
+
+    private String resolveServerName() {
+        String resolved = serverName;
+        if (TextUtils.isEmpty(resolved) && bind != null) {
+            CharSequence text = bind.serverNameTextView.getText();
+            if (text != null) {
+                resolved = text.toString().trim();
+            }
+        }
+        if (TextUtils.isEmpty(resolved) && viewModel != null) {
+            JellyfinServer existing = viewModel.getServerToEdit();
+            if (existing != null && !TextUtils.isEmpty(existing.getName())) {
+                resolved = existing.getName();
+            }
+        }
+        if (TextUtils.isEmpty(resolved)) {
+            resolved = deriveServerNameFromAddress();
+        }
+        return TextUtils.isEmpty(resolved) ? "Jellyfin" : resolved;
+    }
+
+    private String resolveServerAddress() {
+        String resolved = server;
+        if (TextUtils.isEmpty(resolved) && bind != null) {
+            resolved = normalizeUrl(bind.serverTextView.getText());
+        }
+        if (TextUtils.isEmpty(resolved) && viewModel != null) {
+            JellyfinServer existing = viewModel.getServerToEdit();
+            if (existing != null && !TextUtils.isEmpty(existing.getAddress())) {
+                resolved = existing.getAddress();
+            }
+        }
+        return resolved;
+    }
+
+    private String resolveUsername() {
+        String resolved = username;
+        if (TextUtils.isEmpty(resolved) && bind != null) {
+            CharSequence text = bind.usernameTextView.getText();
+            if (text != null) {
+                resolved = text.toString().trim();
+            }
+        }
+        if (TextUtils.isEmpty(resolved) && viewModel != null) {
+            JellyfinServer existing = viewModel.getServerToEdit();
+            if (existing != null && !TextUtils.isEmpty(existing.getUsername())) {
+                resolved = existing.getUsername();
+            }
+        }
+        return TextUtils.isEmpty(resolved) ? "user" : resolved;
+    }
+
+    private String deriveServerNameFromAddress() {
+        String address = resolveServerAddress();
+        if (TextUtils.isEmpty(address)) return null;
+        Uri uri = Uri.parse(address);
+        String host = uri.getHost();
+        if (!TextUtils.isEmpty(host)) {
+            return host;
+        }
+        return address;
     }
 
 }

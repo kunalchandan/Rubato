@@ -45,7 +45,7 @@
             android:key="rounded_corner" />
 
         <ListPreference
-            app:defaultValue="6"
+            app:defaultValue="24"
             app:dialogTitle="@string/settings_rounded_corner_size"
             app:entries="@array/rounded_corner_size_titles"
             app:entryValues="@array/rounded_corner_size_values"
@@ -359,6 +359,11 @@
             app:selectable="false"
             app:summary="@string/settings_summary_syncing" />
 
+        <Preference
+            android:key="metadata_sync_full"
+            android:title="@string/settings_metadata_sync_full_title"
+            android:summary="@string/settings_metadata_sync_full_summary" />
+
         <SwitchPreference
             android:title="@string/settings_queue_syncing_title"
             android:defaultValue="false"
@@ -381,6 +386,16 @@
             android:defaultValue="false"
             android:summary="@string/settings_local_telemetry_summary"
             android:key="local_telemetry_enabled" />
+
+        <Preference
+            android:key="local_telemetry_export"
+            android:title="@string/settings_local_telemetry_export_title"
+            android:summary="@string/settings_local_telemetry_export_summary" />
+
+        <Preference
+            android:key="local_telemetry_clear"
+            android:title="@string/settings_local_telemetry_clear_title"
+            android:summary="@string/settings_local_telemetry_clear_summary" />
     </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/settings_about_title">

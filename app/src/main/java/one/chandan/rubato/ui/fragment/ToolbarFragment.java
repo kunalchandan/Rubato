@@ -23,8 +23,10 @@ import one.chandan.rubato.subsonic.models.ArtistID3;
 import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.ui.activity.MainActivity;
 import one.chandan.rubato.ui.dialog.MetadataSyncStatusDialog;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.Preferences;
+import one.chandan.rubato.util.ServerConfigUtil;
+import one.chandan.rubato.util.ServerStatus;
 import com.google.android.gms.cast.framework.CastButtonFactory;
 import com.google.android.material.color.MaterialColors;
 import com.google.gson.reflect.TypeToken;
@@ -90,6 +92,7 @@ public class ToolbarFragment extends Fragment {
     public void onStart() {
         super.onStart();
         App.getInstance().getPreferences().registerOnSharedPreferenceChangeListener(metadataSyncListener);
+        ServerStatus.getReachableLive().observe(getViewLifecycleOwner(), reachable -> updateMetadataStatusIcon());
         updateMetadataStatusIcon();
     }
 
@@ -175,7 +178,9 @@ public class ToolbarFragment extends Fragment {
         Runnable updater = () -> {
             if (!isAdded() || metadataStatusItem == null) return;
 
-            boolean offline = NetworkUtil.isOffline();
+            boolean hasServer = ServerConfigUtil.hasAnyRemoteServer();
+            boolean offline = hasServer && OfflinePolicy.isOffline();
+            boolean serverReachable = !hasServer || ServerStatus.isReachable();
             boolean syncing = Preferences.isMetadataSyncActive();
             MetadataStatus status;
             if (!hasAny) {
@@ -190,10 +195,18 @@ public class ToolbarFragment extends Fragment {
             int colorAttr;
             String description;
 
-            if (offline) {
+            if (!hasServer) {
+                iconRes = R.drawable.ic_cloud_download;
+                colorAttr = com.google.android.material.R.attr.colorOutline;
+                description = getString(R.string.metadata_sync_status_no_server);
+            } else if (offline) {
                 iconRes = R.drawable.ic_cloud_off;
                 colorAttr = com.google.android.material.R.attr.colorOutline;
                 description = getString(R.string.metadata_sync_status_offline);
+            } else if (!serverReachable) {
+                iconRes = R.drawable.ic_cloud_off;
+                colorAttr = com.google.android.material.R.attr.colorOutline;
+                description = getString(R.string.activity_info_server_unreachable);
             } else if (syncing) {
                 iconRes = R.drawable.ic_downloading;
                 colorAttr = com.google.android.material.R.attr.colorTertiary;

@@ -11,6 +11,7 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
+import one.chandan.rubato.R;
 import one.chandan.rubato.databinding.ItemHorizontalArtistBinding;
 import one.chandan.rubato.glide.CustomGlideRequest;
 import one.chandan.rubato.interfaces.ClickCallback;
@@ -38,13 +39,15 @@ public class ArtistHorizontalAdapter extends RecyclerView.Adapter<ArtistHorizont
             List<ArtistID3> filteredList = new ArrayList<>();
 
             if (constraint == null || constraint.length() == 0) {
+                currentFilter = "";
                 filteredList.addAll(artistsFull);
             } else {
                 String filterPattern = constraint.toString().toLowerCase().trim();
                 currentFilter = filterPattern;
 
                 for (ArtistID3 item : artistsFull) {
-                    if (item.getName().toLowerCase().contains(filterPattern)) {
+                    String name = item.getName();
+                    if (name != null && name.toLowerCase().contains(filterPattern)) {
                         filteredList.add(item);
                     }
                 }
@@ -58,10 +61,13 @@ public class ArtistHorizontalAdapter extends RecyclerView.Adapter<ArtistHorizont
 
         @Override
         protected void publishResults(CharSequence constraint, FilterResults results) {
+            String expected = currentFilter == null ? "" : currentFilter;
+            String incoming = constraint == null ? "" : constraint.toString();
+            if (!incoming.equals(expected)) {
+                return;
+            }
             List<ArtistID3> next = results.values == null ? Collections.emptyList() : (List<ArtistID3>) results.values;
-            DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new ArtistDiffCallback(artists, next));
-            artists = next;
-            diffResult.dispatchUpdatesTo(ArtistHorizontalAdapter.this);
+            applyItems(next);
         }
     };
 
@@ -99,13 +105,22 @@ public class ArtistHorizontalAdapter extends RecyclerView.Adapter<ArtistHorizont
     }
 
     @Override
+    public int getItemViewType(int position) {
+        return R.layout.item_horizontal_artist;
+    }
+
+    @Override
     public int getItemCount() {
         return artists.size();
     }
 
     public void setItems(List<ArtistID3> artists) {
-        this.artistsFull = artists != null ? artists : Collections.emptyList();
-        filtering.filter(currentFilter);
+        this.artistsFull = artists != null ? new ArrayList<>(artists) : Collections.emptyList();
+        if (currentFilter == null || currentFilter.isEmpty()) {
+            applyItems(this.artistsFull);
+        } else {
+            filtering.filter(currentFilter);
+        }
     }
 
     @Override
@@ -130,6 +145,13 @@ public class ArtistHorizontalAdapter extends RecyclerView.Adapter<ArtistHorizont
 
     public ArtistID3 getItem(int id) {
         return artists.get(id);
+    }
+
+    private void applyItems(List<ArtistID3> next) {
+        List<ArtistID3> safeNext = next == null ? Collections.emptyList() : new ArrayList<>(next);
+        DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new ArtistDiffCallback(artists, safeNext));
+        artists = safeNext;
+        diffResult.dispatchUpdatesTo(this);
     }
 
     private static class ArtistDiffCallback extends DiffUtil.Callback {

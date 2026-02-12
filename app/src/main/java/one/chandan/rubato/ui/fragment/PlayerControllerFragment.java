@@ -31,10 +31,13 @@ import one.chandan.rubato.ui.activity.MainActivity;
 import one.chandan.rubato.ui.dialog.RatingDialog;
 import one.chandan.rubato.ui.dialog.TrackInfoDialog;
 import one.chandan.rubato.ui.fragment.pager.PlayerControllerHorizontalPager;
+import one.chandan.rubato.repository.LocalMusicRepository;
+import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.MusicUtil;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.Preferences;
+import one.chandan.rubato.util.SearchIndexUtil;
 import one.chandan.rubato.viewmodel.PlayerBottomSheetViewModel;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.chip.Chip;
@@ -42,6 +45,7 @@ import com.google.android.material.elevation.SurfaceColors;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import java.util.Date;
 import java.util.Objects;
 
 @UnstableApi
@@ -64,6 +68,8 @@ public class PlayerControllerFragment extends Fragment {
     private MainActivity activity;
     private PlayerBottomSheetViewModel playerBottomSheetViewModel;
     private ListenableFuture<MediaBrowser> mediaBrowserListenableFuture;
+    private Child currentMedia;
+    private Child fallbackMedia;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -166,6 +172,7 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     private void setMetadata(MediaMetadata mediaMetadata) {
+        updateFallbackMedia(mediaMetadata);
         playerMediaTitleLabel.setText(String.valueOf(mediaMetadata.title));
         playerArtistNameLabel.setText(String.valueOf(mediaMetadata.artist));
 
@@ -174,6 +181,7 @@ public class PlayerControllerFragment extends Fragment {
 
         playerMediaTitleLabel.setVisibility(mediaMetadata.title != null && !Objects.equals(mediaMetadata.title, "") ? View.VISIBLE : View.GONE);
         playerArtistNameLabel.setVisibility(mediaMetadata.artist != null && !Objects.equals(mediaMetadata.artist, "") ? View.VISIBLE : View.GONE);
+        syncFavoriteState();
     }
 
     private void setMediaInfo(MediaMetadata mediaMetadata) {
@@ -280,30 +288,149 @@ public class PlayerControllerFragment extends Fragment {
     }
 
     private void initMediaListenable() {
+        buttonFavorite.setOnClickListener(v -> handleFavoriteClick());
+        buttonFavorite.setOnLongClickListener(v -> handleFavoriteLongClick());
+
         playerBottomSheetViewModel.getLiveMedia().observe(getViewLifecycleOwner(), media -> {
+            currentMedia = media;
             if (media != null) {
                 buttonFavorite.setChecked(media.getStarred() != null);
-                buttonFavorite.setOnClickListener(v -> playerBottomSheetViewModel.setFavorite(requireContext(), media));
-                buttonFavorite.setOnLongClickListener(v -> {
-                    if (NetworkUtil.isOffline()) {
-                        Snackbar.make(bind.getRoot(), getString(R.string.queue_add_next_unavailable_offline), Snackbar.LENGTH_SHORT).show();
-                        return true;
-                    }
-                    Bundle bundle = new Bundle();
-                    bundle.putParcelable(Constants.TRACK_OBJECT, media);
-
-                    RatingDialog dialog = new RatingDialog();
-                    dialog.setArguments(bundle);
-                    dialog.show(requireActivity().getSupportFragmentManager(), null);
-
-                    return true;
-                });
-
                 if (getActivity() != null) {
                     playerBottomSheetViewModel.refreshMediaInfo(requireActivity(), media);
                 }
+            } else {
+                syncFavoriteState();
             }
         });
+    }
+
+    private void handleFavoriteClick() {
+        Child media = resolveFavoriteTarget();
+        if (media == null) {
+            showFavoriteUnavailable();
+            buttonFavorite.setChecked(false);
+            return;
+        }
+        if (!isFavoriteSupported(media)) {
+            showFavoriteUnsupported();
+            buttonFavorite.setChecked(media.getStarred() != null);
+            return;
+        }
+        playerBottomSheetViewModel.setFavorite(requireContext(), media);
+        buttonFavorite.setChecked(media.getStarred() != null);
+    }
+
+    private boolean handleFavoriteLongClick() {
+        Child media = resolveFavoriteTarget();
+        if (media == null) {
+            showFavoriteUnavailable();
+            return true;
+        }
+        if (!isFavoriteSupported(media)) {
+            showFavoriteUnsupported();
+            return true;
+        }
+        if (!OfflinePolicy.canRate()) {
+            Snackbar.make(bind.getRoot(), getString(R.string.queue_add_next_unavailable_offline), Snackbar.LENGTH_SHORT).show();
+            return true;
+        }
+        Bundle bundle = new Bundle();
+        bundle.putParcelable(Constants.TRACK_OBJECT, media);
+
+        RatingDialog dialog = new RatingDialog();
+        dialog.setArguments(bundle);
+        dialog.show(requireActivity().getSupportFragmentManager(), null);
+        return true;
+    }
+
+    private Child resolveFavoriteTarget() {
+        if (currentMedia != null) {
+            return currentMedia;
+        }
+        return fallbackMedia;
+    }
+
+    private Child buildChildFromExtras(Bundle extras) {
+        String id = extras.getString("id");
+        if (id == null || id.trim().isEmpty()) {
+            return null;
+        }
+        Child child = new Child(id);
+        child.setParentId(extras.getString("parentId"));
+        child.setDir(extras.getBoolean("isDir"));
+        child.setTitle(extras.getString("title"));
+        child.setAlbum(extras.getString("album"));
+        child.setArtist(extras.getString("artist"));
+        child.setTrack(extras.getInt("track"));
+        child.setYear(extras.getInt("year"));
+        child.setGenre(extras.getString("genre"));
+        child.setCoverArtId(extras.getString("coverArtId"));
+        child.setSize(extras.getLong("size"));
+        child.setContentType(extras.getString("contentType"));
+        child.setSuffix(extras.getString("suffix"));
+        child.setTranscodedContentType(extras.getString("transcodedContentType"));
+        child.setTranscodedSuffix(extras.getString("transcodedSuffix"));
+        child.setDuration(extras.getInt("duration"));
+        child.setBitrate(extras.getInt("bitrate"));
+        child.setPath(extras.getString("path"));
+        child.setVideo(extras.getBoolean("isVideo"));
+        child.setUserRating(extras.getInt("userRating"));
+        child.setAverageRating(extras.getDouble("averageRating"));
+        child.setPlayCount(extras.getLong("playCount"));
+        child.setDiscNumber(extras.getInt("discNumber"));
+        child.setAlbumId(extras.getString("albumId"));
+        child.setArtistId(extras.getString("artistId"));
+        child.setType(extras.getString("type"));
+        child.setBookmarkPosition(extras.getLong("bookmarkPosition"));
+        child.setOriginalWidth(extras.getInt("originalWidth"));
+        child.setOriginalHeight(extras.getInt("originalHeight"));
+        long starred = extras.getLong("starred");
+        if (starred > 0) {
+            child.setStarred(new Date(starred));
+        }
+        return child;
+    }
+
+    private void updateFallbackMedia(MediaMetadata mediaMetadata) {
+        Bundle extras = mediaMetadata != null ? mediaMetadata.extras : null;
+        String metadataId = extras != null ? extras.getString("id") : null;
+        if (currentMedia != null && (metadataId == null || !metadataId.equals(currentMedia.getId()))) {
+            currentMedia = null;
+        }
+        if (extras == null) {
+            fallbackMedia = null;
+            return;
+        }
+        fallbackMedia = buildChildFromExtras(extras);
+    }
+
+    private boolean isFavoriteSupported(Child media) {
+        if (media == null) return false;
+        String id = media.getId();
+        if (id == null || id.trim().isEmpty()) return false;
+        if (SearchIndexUtil.isJellyfinTagged(id)) return false;
+        if (LocalMusicRepository.isLocalId(id)) return false;
+        return !Constants.MEDIA_TYPE_LOCAL.equals(media.getType());
+    }
+
+    private void syncFavoriteState() {
+        if (currentMedia != null) {
+            buttonFavorite.setChecked(currentMedia.getStarred() != null);
+            return;
+        }
+        if (fallbackMedia != null) {
+            buttonFavorite.setChecked(fallbackMedia.getStarred() != null);
+            return;
+        }
+        buttonFavorite.setChecked(false);
+    }
+
+    private void showFavoriteUnavailable() {
+        Snackbar.make(bind.getRoot(), getString(R.string.favorite_unavailable), Snackbar.LENGTH_SHORT).show();
+    }
+
+    private void showFavoriteUnsupported() {
+        Snackbar.make(bind.getRoot(), getString(R.string.favorite_unsupported_source), Snackbar.LENGTH_SHORT).show();
     }
 
     private void initMediaLabelButton() {

@@ -10,13 +10,15 @@ import androidx.lifecycle.MutableLiveData;
 
 import one.chandan.rubato.repository.PodcastRepository;
 import one.chandan.rubato.subsonic.models.PodcastChannel;
+import one.chandan.rubato.util.CollectionUtil;
 
+import java.util.Collections;
 import java.util.List;
 
 public class PodcastChannelCatalogueViewModel extends AndroidViewModel {
     private final PodcastRepository podcastRepository;
 
-    private final MutableLiveData<List<PodcastChannel>> podcastChannels = new MutableLiveData<>(null);
+    private final MutableLiveData<List<PodcastChannel>> podcastChannels = new MutableLiveData<>(Collections.emptyList());
 
 
     public PodcastChannelCatalogueViewModel(@NonNull Application application) {
@@ -26,8 +28,9 @@ public class PodcastChannelCatalogueViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<PodcastChannel>> getPodcastChannels(LifecycleOwner owner) {
-        if (podcastChannels.getValue() == null) {
-            podcastRepository.getPodcastChannels(false, null).observe(owner, podcastChannels::postValue);
+        if (podcastChannels.getValue() == null || podcastChannels.getValue().isEmpty()) {
+            podcastRepository.getPodcastChannels(false, null)
+                    .observe(owner, items -> podcastChannels.postValue(CollectionUtil.arrayListOrEmpty(items)));
         }
 
         return podcastChannels;

@@ -108,6 +108,7 @@ public class ArtistCatalogueFragment extends Fragment implements ClickCallback {
         artistAdapter.setStateRestorationPolicy(RecyclerView.Adapter.StateRestorationPolicy.PREVENT_WHEN_EMPTY);
         bind.artistCatalogueRecyclerView.setAdapter(artistAdapter);
         artistCatalogueViewModel.getArtistList().observe(getViewLifecycleOwner(), artistList -> artistAdapter.setItems(artistList));
+        artistCatalogueViewModel.getArtistStats().observe(getViewLifecycleOwner(), stats -> artistAdapter.setArtistStats(stats));
 
         bind.artistCatalogueRecyclerView.setOnTouchListener((v, event) -> {
             hideKeyboard(v);
@@ -157,6 +158,12 @@ public class ArtistCatalogueFragment extends Fragment implements ClickCallback {
                 return true;
             } else if (menuItem.getItemId() == R.id.menu_artist_sort_random) {
                 artistAdapter.sort(Constants.ARTIST_ORDER_BY_RANDOM);
+                return true;
+            } else if (menuItem.getItemId() == R.id.menu_artist_sort_most_played) {
+                artistAdapter.sort(Constants.ARTIST_ORDER_BY_MOST_PLAYED);
+                return true;
+            } else if (menuItem.getItemId() == R.id.menu_artist_sort_recently_played) {
+                artistAdapter.sort(Constants.ARTIST_ORDER_BY_RECENTLY_PLAYED);
                 return true;
             }
 

@@ -49,6 +49,11 @@ public class YearAdapter extends RecyclerView.Adapter<YearAdapter.ViewHolder> {
     }
 
     @Override
+    public int getItemViewType(int position) {
+        return R.layout.item_home_year;
+    }
+
+    @Override
     public long getItemId(int position) {
         if (position < 0 || position >= years.size()) {
             return RecyclerView.NO_ID;

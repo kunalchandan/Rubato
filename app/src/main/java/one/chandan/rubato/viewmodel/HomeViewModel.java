@@ -28,6 +28,7 @@ import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.subsonic.models.Playlist;
 import one.chandan.rubato.subsonic.models.Share;
 import one.chandan.rubato.util.Constants;
+import one.chandan.rubato.util.CollectionUtil;
 import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.Preferences;
 import one.chandan.rubato.util.ServerConfigUtil;
@@ -53,27 +54,29 @@ public class HomeViewModel extends AndroidViewModel {
     private final PlaylistRepository playlistRepository;
     private final SharingRepository sharingRepository;
 
-    private final MutableLiveData<List<Child>> dicoverSongSample = new MutableLiveData<>(null);
-    private final MutableLiveData<List<AlbumID3>> newReleasedAlbum = new MutableLiveData<>(null);
-    private final MutableLiveData<List<Child>> starredTracksSample = new MutableLiveData<>(null);
-    private final MutableLiveData<List<ArtistID3>> starredArtistsSample = new MutableLiveData<>(null);
-    private final MutableLiveData<List<ArtistID3>> bestOfArtists = new MutableLiveData<>(null);
-    private final MutableLiveData<List<Child>> starredTracks = new MutableLiveData<>(null);
-    private final MutableLiveData<List<AlbumID3>> starredAlbums = new MutableLiveData<>(null);
-    private final MutableLiveData<List<ArtistID3>> starredArtists = new MutableLiveData<>(null);
-    private final MutableLiveData<List<AlbumID3>> mostPlayedAlbumSample = new MutableLiveData<>(null);
-    private final MutableLiveData<List<AlbumID3>> recentlyPlayedAlbumSample = new MutableLiveData<>(null);
-    private final MutableLiveData<List<Integer>> years = new MutableLiveData<>(null);
-    private final MutableLiveData<List<AlbumID3>> recentlyAddedAlbumSample = new MutableLiveData<>(null);
+    private final MutableLiveData<List<Child>> dicoverSongSample = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<AlbumID3>> newReleasedAlbum = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<Child>> starredTracksSample = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<ArtistID3>> starredArtistsSample = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<ArtistID3>> bestOfArtists = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<Child>> starredTracks = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<AlbumID3>> starredAlbums = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<ArtistID3>> starredArtists = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<AlbumID3>> mostPlayedAlbumSample = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<AlbumID3>> recentlyPlayedAlbumSample = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<Integer>> years = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<AlbumID3>> recentlyAddedAlbumSample = new MutableLiveData<>(Collections.emptyList());
 
-    private final MutableLiveData<List<Chronology>> thisGridTopSong = new MutableLiveData<>(null);
-    private final MutableLiveData<List<Child>> mediaInstantMix = new MutableLiveData<>(null);
-    private final MutableLiveData<List<Child>> artistInstantMix = new MutableLiveData<>(null);
-    private final MutableLiveData<List<Child>> artistBestOf = new MutableLiveData<>(null);
-    private final MutableLiveData<List<Playlist>> pinnedPlaylists = new MutableLiveData<>(null);
-    private final MutableLiveData<List<Share>> shares = new MutableLiveData<>(null);
+    private final MutableLiveData<List<Chronology>> thisGridTopSong = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<Child>> mediaInstantMix = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<Child>> artistInstantMix = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<Child>> artistBestOf = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<Playlist>> pinnedPlaylists = new MutableLiveData<>(Collections.emptyList());
+    private final MutableLiveData<List<Share>> shares = new MutableLiveData<>(Collections.emptyList());
 
     private List<HomeSector> sectors;
+    private int homeScrollY = 0;
+    private long lastSyncCompletedAt = 0L;
 
     private LiveData<List<Child>> starredTracksSource;
     private LiveData<List<AlbumID3>> starredAlbumsSource;
@@ -82,7 +85,7 @@ public class HomeViewModel extends AndroidViewModel {
     private final Observer<List<Child>> starredTracksObserver = songs -> updateListPreservingNonEmpty(starredTracks, songs);
     private final Observer<List<AlbumID3>> starredAlbumsObserver = albums -> updateListPreservingNonEmpty(starredAlbums, albums);
     private final Observer<List<ArtistID3>> starredArtistsObserver = artists -> updateListPreservingNonEmpty(starredArtists, artists);
-    private final Observer<List<Chronology>> chronologyObserver = thisGridTopSong::postValue;
+    private final Observer<List<Chronology>> chronologyObserver = items -> postList(thisGridTopSong, items);
 
     public HomeViewModel(@NonNull Application application) {
         super(application);
@@ -147,17 +150,59 @@ public class HomeViewModel extends AndroidViewModel {
         return new MutableLiveData<>(Collections.emptyList());
     }
 
+    private <T> void postList(MutableLiveData<List<T>> target, List<T> incoming) {
+        if (target == null) return;
+        target.postValue(CollectionUtil.arrayListOrEmpty(incoming));
+    }
+
     public LiveData<List<Child>> getDiscoverSongSample(LifecycleOwner owner) {
         if (!hasRemoteServer()) {
             loadLocalSongsSample(10, dicoverSongSample);
             return dicoverSongSample;
         }
 
-        if (dicoverSongSample.getValue() == null) {
-            songRepository.getRandomSample(10, null, null).observe(owner, dicoverSongSample::postValue);
+        if (dicoverSongSample.getValue() == null || dicoverSongSample.getValue().isEmpty()) {
+            songRepository.getRandomSample(10, null, null).observe(owner, items -> postList(dicoverSongSample, items));
         }
 
         return dicoverSongSample;
+    }
+
+    public int getHomeScrollY() {
+        return homeScrollY;
+    }
+
+    public void setHomeScrollY(int scrollY) {
+        homeScrollY = Math.max(0, scrollY);
+    }
+
+    public boolean hasCachedHomeData() {
+        return hasItems(dicoverSongSample)
+                || hasItems(newReleasedAlbum)
+                || hasItems(starredTracksSample)
+                || hasItems(starredAlbums)
+                || hasItems(starredArtists)
+                || hasItems(mostPlayedAlbumSample)
+                || hasItems(recentlyPlayedAlbumSample)
+                || hasItems(recentlyAddedAlbumSample)
+                || hasItems(thisGridTopSong)
+                || hasItems(pinnedPlaylists);
+    }
+
+    private <T> boolean hasItems(MutableLiveData<List<T>> target) {
+        if (target == null) {
+            return false;
+        }
+        List<T> items = target.getValue();
+        return items != null && !items.isEmpty();
+    }
+
+    public long getLastSyncCompletedAt() {
+        return lastSyncCompletedAt;
+    }
+
+    public void setLastSyncCompletedAt(long completedAt) {
+        lastSyncCompletedAt = completedAt;
     }
 
     public LiveData<List<Child>> getRandomShuffleSample() {
@@ -217,8 +262,8 @@ public class HomeViewModel extends AndroidViewModel {
             return starredTracksSample;
         }
 
-        if (starredTracksSample.getValue() == null) {
-            songRepository.getStarredSongs(true, 10).observe(owner, starredTracksSample::postValue);
+        if (starredTracksSample.getValue() == null || starredTracksSample.getValue().isEmpty()) {
+            songRepository.getStarredSongs(true, 10).observe(owner, items -> postList(starredTracksSample, items));
         }
 
         return starredTracksSample;
@@ -230,8 +275,8 @@ public class HomeViewModel extends AndroidViewModel {
             return starredArtistsSample;
         }
 
-        if (starredArtistsSample.getValue() == null) {
-            artistRepository.getStarredArtists(true, 10).observe(owner, starredArtistsSample::postValue);
+        if (starredArtistsSample.getValue() == null || starredArtistsSample.getValue().isEmpty()) {
+            artistRepository.getStarredArtists(true, 10).observe(owner, items -> postList(starredArtistsSample, items));
         }
 
         return starredArtistsSample;
@@ -243,8 +288,8 @@ public class HomeViewModel extends AndroidViewModel {
             return bestOfArtists;
         }
 
-        if (bestOfArtists.getValue() == null) {
-            artistRepository.getStarredArtists(true, 20).observe(owner, bestOfArtists::postValue);
+        if (bestOfArtists.getValue() == null || bestOfArtists.getValue().isEmpty()) {
+            artistRepository.getStarredArtists(true, 20).observe(owner, items -> postList(bestOfArtists, items));
         }
 
         return bestOfArtists;
@@ -290,8 +335,8 @@ public class HomeViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<Integer>> getYearList(LifecycleOwner owner) {
-        if (years.getValue() == null) {
-            albumRepository.getDecades().observe(owner, years::postValue);
+        if (years.getValue() == null || years.getValue().isEmpty()) {
+            albumRepository.getDecades().observe(owner, items -> postList(years, items));
         }
 
         return years;
@@ -303,8 +348,8 @@ public class HomeViewModel extends AndroidViewModel {
             return mostPlayedAlbumSample;
         }
 
-        if (mostPlayedAlbumSample.getValue() == null) {
-            albumRepository.getAlbums("frequent", 20, null, null).observe(owner, mostPlayedAlbumSample::postValue);
+        if (mostPlayedAlbumSample.getValue() == null || mostPlayedAlbumSample.getValue().isEmpty()) {
+            albumRepository.getAlbums("frequent", 20, null, null).observe(owner, items -> postList(mostPlayedAlbumSample, items));
         }
 
         return mostPlayedAlbumSample;
@@ -316,8 +361,8 @@ public class HomeViewModel extends AndroidViewModel {
             return recentlyAddedAlbumSample;
         }
 
-        if (recentlyAddedAlbumSample.getValue() == null) {
-            albumRepository.getAlbums("newest", 20, null, null).observe(owner, recentlyAddedAlbumSample::postValue);
+        if (recentlyAddedAlbumSample.getValue() == null || recentlyAddedAlbumSample.getValue().isEmpty()) {
+            albumRepository.getAlbums("newest", 20, null, null).observe(owner, items -> postList(recentlyAddedAlbumSample, items));
         }
 
         return recentlyAddedAlbumSample;
@@ -329,8 +374,8 @@ public class HomeViewModel extends AndroidViewModel {
             return recentlyPlayedAlbumSample;
         }
 
-        if (recentlyPlayedAlbumSample.getValue() == null) {
-            albumRepository.getAlbums("recent", 20, null, null).observe(owner, recentlyPlayedAlbumSample::postValue);
+        if (recentlyPlayedAlbumSample.getValue() == null || recentlyPlayedAlbumSample.getValue().isEmpty()) {
+            albumRepository.getAlbums("recent", 20, null, null).observe(owner, items -> postList(recentlyPlayedAlbumSample, items));
         }
 
         return recentlyPlayedAlbumSample;
@@ -343,7 +388,7 @@ public class HomeViewModel extends AndroidViewModel {
             return mediaInstantMix;
         }
 
-        songRepository.getInstantMix(media.getId(), 20).observe(owner, mediaInstantMix::postValue);
+        songRepository.getInstantMix(media.getId(), 20).observe(owner, items -> postList(mediaInstantMix, items));
 
         return mediaInstantMix;
     }
@@ -360,7 +405,7 @@ public class HomeViewModel extends AndroidViewModel {
             return artistInstantMix;
         }
 
-        artistRepository.getTopSongs(artist.getName(), 10).observe(owner, artistInstantMix::postValue);
+        artistRepository.getTopSongs(artist.getName(), 10).observe(owner, items -> postList(artistInstantMix, items));
 
         return artistInstantMix;
     }
@@ -377,7 +422,7 @@ public class HomeViewModel extends AndroidViewModel {
             return artistBestOf;
         }
 
-        artistRepository.getTopSongs(artist.getName(), 10).observe(owner, artistBestOf::postValue);
+        artistRepository.getTopSongs(artist.getName(), 10).observe(owner, items -> postList(artistBestOf, items));
 
         return artistBestOf;
     }
@@ -421,7 +466,7 @@ public class HomeViewModel extends AndroidViewModel {
         }
 
         if (shares.getValue() == null) {
-            sharingRepository.getShares().observe(owner, shares::postValue);
+            sharingRepository.getShares().observe(owner, items -> postList(shares, items));
         }
 
         return shares;
@@ -456,7 +501,7 @@ public class HomeViewModel extends AndroidViewModel {
             end = cal.getTimeInMillis();
         }
 
-        chronologyRepository.getChronology(server, start, end).observe(owner, thisGridTopSong::postValue);
+        chronologyRepository.getChronology(server, start, end).observe(owner, items -> postList(thisGridTopSong, items));
     }
 
     public void refreshDiscoverySongSample(LifecycleOwner owner) {
@@ -464,7 +509,7 @@ public class HomeViewModel extends AndroidViewModel {
             loadLocalSongsSample(10, dicoverSongSample);
             return;
         }
-        songRepository.getRandomSample(10, null, null).observe(owner, dicoverSongSample::postValue);
+        songRepository.getRandomSample(10, null, null).observe(owner, items -> postList(dicoverSongSample, items));
     }
 
     public void refreshSimilarSongSample(LifecycleOwner owner) {
@@ -472,7 +517,7 @@ public class HomeViewModel extends AndroidViewModel {
             loadLocalSongsSample(10, starredTracksSample);
             return;
         }
-        songRepository.getStarredSongs(true, 10).observe(owner, starredTracksSample::postValue);
+        songRepository.getStarredSongs(true, 10).observe(owner, items -> postList(starredTracksSample, items));
     }
 
     public void refreshRadioArtistSample(LifecycleOwner owner) {
@@ -480,7 +525,7 @@ public class HomeViewModel extends AndroidViewModel {
             loadLocalArtistsSample(10, starredArtistsSample);
             return;
         }
-        artistRepository.getStarredArtists(true, 10).observe(owner, starredArtistsSample::postValue);
+        artistRepository.getStarredArtists(true, 10).observe(owner, items -> postList(starredArtistsSample, items));
     }
 
     public void refreshBestOfArtist(LifecycleOwner owner) {
@@ -488,7 +533,7 @@ public class HomeViewModel extends AndroidViewModel {
             loadLocalArtistsSample(20, bestOfArtists);
             return;
         }
-        artistRepository.getStarredArtists(true, 20).observe(owner, bestOfArtists::postValue);
+        artistRepository.getStarredArtists(true, 20).observe(owner, items -> postList(bestOfArtists, items));
     }
 
     public void refreshStarredTracks(LifecycleOwner owner) {
@@ -529,19 +574,14 @@ public class HomeViewModel extends AndroidViewModel {
 
     private <T> void updateListPreservingNonEmpty(MutableLiveData<List<T>> target, List<T> incoming) {
         if (target == null) return;
-        if (incoming == null) {
-            if (target.getValue() == null) {
-                target.postValue(null);
-            }
-            return;
-        }
-        if (incoming.isEmpty()) {
+        List<T> safeIncoming = CollectionUtil.arrayListOrEmpty(incoming);
+        if (safeIncoming.isEmpty()) {
             List<T> current = target.getValue();
             if (current != null && !current.isEmpty()) {
                 return;
             }
         }
-        target.postValue(new ArrayList<>(incoming));
+        target.postValue(safeIncoming);
     }
 
     public void refreshMostPlayedAlbums(LifecycleOwner owner) {
@@ -549,7 +589,7 @@ public class HomeViewModel extends AndroidViewModel {
             loadLocalAlbumsSample(20, mostPlayedAlbumSample);
             return;
         }
-        albumRepository.getAlbums("frequent", 20, null, null).observe(owner, mostPlayedAlbumSample::postValue);
+        albumRepository.getAlbums("frequent", 20, null, null).observe(owner, items -> postList(mostPlayedAlbumSample, items));
     }
 
     public void refreshMostRecentlyAddedAlbums(LifecycleOwner owner) {
@@ -557,7 +597,7 @@ public class HomeViewModel extends AndroidViewModel {
             loadLocalAlbumsSample(20, recentlyAddedAlbumSample);
             return;
         }
-        albumRepository.getAlbums("newest", 20, null, null).observe(owner, recentlyAddedAlbumSample::postValue);
+        albumRepository.getAlbums("newest", 20, null, null).observe(owner, items -> postList(recentlyAddedAlbumSample, items));
     }
 
     public void refreshRecentlyReleasedAlbums(LifecycleOwner owner) {
@@ -628,7 +668,7 @@ public class HomeViewModel extends AndroidViewModel {
             loadLocalAlbumsSample(20, recentlyPlayedAlbumSample);
             return;
         }
-        albumRepository.getAlbums("recent", 20, null, null).observe(owner, recentlyPlayedAlbumSample::postValue);
+        albumRepository.getAlbums("recent", 20, null, null).observe(owner, items -> postList(recentlyPlayedAlbumSample, items));
     }
 
     public void refreshShares(LifecycleOwner owner) {
@@ -636,7 +676,7 @@ public class HomeViewModel extends AndroidViewModel {
             updateListPreservingNonEmpty(shares, Collections.emptyList());
             return;
         }
-        sharingRepository.getShares().observe(owner, this.shares::postValue);
+        sharingRepository.getShares().observe(owner, items -> postList(this.shares, items));
     }
 
     @Override

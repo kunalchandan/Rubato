@@ -8,6 +8,7 @@ import androidx.media3.common.C;
 public class VisualizerManager {
     public interface Listener {
         void onWaveformData(byte[] waveform, int samplingRate);
+        void onFftData(byte[] fft, int samplingRate);
         void onError(Exception exception);
     }
 
@@ -30,7 +31,9 @@ public class VisualizerManager {
 
         @Override
         public void onFftDataCapture(Visualizer visualizer, byte[] fft, int samplingRate) {
-            // Not used.
+            if (listener != null && fft != null) {
+                listener.onFftData(fft, samplingRate);
+            }
         }
     };
 
@@ -93,7 +96,7 @@ public class VisualizerManager {
 
         try {
             visualizer = new Visualizer(audioSessionId);
-            visualizer.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED);
+            visualizer.setScalingMode(Visualizer.SCALING_MODE_AS_PLAYED);
             applyCaptureSize();
             applyCaptureRate();
             visualizer.setEnabled(true);
@@ -132,7 +135,7 @@ public class VisualizerManager {
         int requestedRate = Math.max(1000, targetFps * 1000);
         int rate = Math.min(maxRate, requestedRate);
         try {
-            visualizer.setDataCaptureListener(captureListener, rate, true, false);
+            visualizer.setDataCaptureListener(captureListener, rate, true, true);
         } catch (Exception exception) {
             if (listener != null) {
                 listener.onError(exception);

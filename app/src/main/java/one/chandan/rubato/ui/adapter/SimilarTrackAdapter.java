@@ -8,12 +8,15 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
+import one.chandan.rubato.R;
 import one.chandan.rubato.databinding.ItemHomeSimilarTrackBinding;
 import one.chandan.rubato.glide.CustomGlideRequest;
 import one.chandan.rubato.interfaces.ClickCallback;
 import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.MusicUtil;
+import android.util.TypedValue;
+import com.google.android.material.card.MaterialCardView;
 
 import java.util.Collections;
 import java.util.List;
@@ -47,6 +50,13 @@ public class SimilarTrackAdapter extends RecyclerView.Adapter<SimilarTrackAdapte
                 .from(holder.itemView.getContext(), song.getCoverArtId(), CustomGlideRequest.ResourceType.Song)
                 .build()
                 .into(holder.item.trackCoverImageView);
+
+        applyShuffleBadge(holder);
+    }
+
+    @Override
+    public int getItemViewType(int position) {
+        return R.layout.item_home_similar_track;
     }
 
     @Override
@@ -146,5 +156,34 @@ public class SimilarTrackAdapter extends RecyclerView.Adapter<SimilarTrackAdapte
 
             return true;
         }
+    }
+
+    private void applyShuffleBadge(ViewHolder holder) {
+        MaterialCardView badge = holder.item.madeForYouShuffleBadge;
+        if (badge == null) return;
+        holder.item.trackCoverImageView.post(() -> {
+            int width = holder.item.trackCoverImageView.getWidth();
+            int height = holder.item.trackCoverImageView.getHeight();
+            int radius = CustomGlideRequest.getCornerRadiusPx(width, height, CustomGlideRequest.ResourceType.Song);
+            if (radius <= 0) {
+                radius = dpToPx(16, holder.itemView);
+            }
+            int size = Math.max(2 * radius, dpToPx(24, holder.itemView));
+            ViewGroup.LayoutParams params = badge.getLayoutParams();
+            if (params != null && (params.width != size || params.height != size)) {
+                params.width = size;
+                params.height = size;
+                badge.setLayoutParams(params);
+            }
+            badge.setRadius(radius);
+        });
+    }
+
+    private int dpToPx(int dp, android.view.View view) {
+        return Math.round(TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                dp,
+                view.getResources().getDisplayMetrics()
+        ));
     }
 }

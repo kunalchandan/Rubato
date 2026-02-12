@@ -3,6 +3,9 @@ package one.chandan.rubato.ui.fragment;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -32,6 +35,7 @@ import one.chandan.rubato.interfaces.ClickCallback;
 import one.chandan.rubato.ui.activity.MainActivity;
 import one.chandan.rubato.ui.adapter.GenreCatalogueAdapter;
 import one.chandan.rubato.util.Constants;
+import one.chandan.rubato.sync.SyncOrchestrator;
 import one.chandan.rubato.viewmodel.GenreCatalogueViewModel;
 
 @OptIn(markerClass = UnstableApi.class)
@@ -41,6 +45,10 @@ public class GenreCatalogueFragment extends Fragment implements ClickCallback {
     private GenreCatalogueViewModel genreCatalogueViewModel;
 
     private GenreCatalogueAdapter genreCatalogueAdapter;
+    private final Handler syncHandler = new Handler(Looper.getMainLooper());
+    private Runnable syncRefreshRunnable;
+    private long lastSyncRefreshMs = 0L;
+    private long lastSyncCompletedAt = 0L;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -59,6 +67,7 @@ public class GenreCatalogueFragment extends Fragment implements ClickCallback {
         init();
         initAppBar();
         initGenreCatalogueView();
+        bindSyncState();
 
         return view;
     }
@@ -66,6 +75,10 @@ public class GenreCatalogueFragment extends Fragment implements ClickCallback {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        if (syncRefreshRunnable != null) {
+            syncHandler.removeCallbacks(syncRefreshRunnable);
+            syncRefreshRunnable = null;
+        }
         bind = null;
     }
 
@@ -113,6 +126,35 @@ public class GenreCatalogueFragment extends Fragment implements ClickCallback {
         });
 
         bind.genreListSortImageView.setOnClickListener(view -> showPopupMenu(view, R.menu.sort_genre_popup_menu));
+    }
+
+    private void bindSyncState() {
+        SyncOrchestrator.getSyncState().observe(getViewLifecycleOwner(), state -> {
+            if (state == null) return;
+            if (state.getActive()) {
+                return;
+            }
+            long completedAt = state.getLastCompletedAt();
+            if (completedAt > 0 && completedAt != lastSyncCompletedAt) {
+                lastSyncCompletedAt = completedAt;
+                scheduleSyncRefresh();
+            }
+        });
+    }
+
+    private void scheduleSyncRefresh() {
+        if (syncRefreshRunnable != null) {
+            syncHandler.removeCallbacks(syncRefreshRunnable);
+        }
+        long now = SystemClock.elapsedRealtime();
+        long minIntervalMs = 1500L;
+        long delay = Math.max(0L, minIntervalMs - (now - lastSyncRefreshMs));
+        syncRefreshRunnable = () -> {
+            if (bind == null || genreCatalogueViewModel == null) return;
+            lastSyncRefreshMs = SystemClock.elapsedRealtime();
+            genreCatalogueViewModel.refreshGenreList();
+        };
+        syncHandler.postDelayed(syncRefreshRunnable, delay);
     }
 
     @Override

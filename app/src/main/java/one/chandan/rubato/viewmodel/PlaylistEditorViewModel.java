@@ -7,7 +7,7 @@ import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
-import one.chandan.rubato.repository.PlaylistRepository;
+import one.chandan.rubato.repository.LibraryRepository;
 import one.chandan.rubato.repository.SharingRepository;
 import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.subsonic.models.Playlist;
@@ -16,36 +16,35 @@ import one.chandan.rubato.subsonic.models.Share;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 public class PlaylistEditorViewModel extends AndroidViewModel {
     private static final String TAG = "PlaylistEditorViewModel";
 
-    private final PlaylistRepository playlistRepository;
+    private final LibraryRepository libraryRepository;
     private final SharingRepository sharingRepository;
 
     private Child toAdd;
     private Playlist toEdit;
 
-    private MutableLiveData<List<Child>> songLiveList = new MutableLiveData<>();
+    private MutableLiveData<List<Child>> songLiveList = new MutableLiveData<>(Collections.emptyList());
 
     public PlaylistEditorViewModel(@NonNull Application application) {
         super(application);
 
-        playlistRepository = new PlaylistRepository();
+        libraryRepository = new LibraryRepository();
         sharingRepository = new SharingRepository();
     }
 
     public void createPlaylist(String name) {
-        playlistRepository.createPlaylist(null, name, new ArrayList(Collections.singletonList(toAdd.getId())));
+        libraryRepository.createPlaylist(null, name, new ArrayList(Collections.singletonList(toAdd.getId())));
     }
 
     public void updatePlaylist(String name) {
-        playlistRepository.updatePlaylist(toEdit.getId(), name, getPlaylistSongIds());
+        libraryRepository.updatePlaylist(toEdit.getId(), name, getPlaylistSongIds());
     }
 
     public void deletePlaylist() {
-        if (toEdit != null) playlistRepository.deletePlaylist(toEdit.getId());
+        if (toEdit != null) libraryRepository.deletePlaylist(toEdit.getId());
     }
 
     public Child getSongToAdd() {
@@ -64,9 +63,9 @@ public class PlaylistEditorViewModel extends AndroidViewModel {
         this.toEdit = playlist;
 
         if (playlist != null) {
-            this.songLiveList = playlistRepository.getPlaylistSongs(toEdit.getId());
+            this.songLiveList = libraryRepository.getPlaylistSongs(toEdit.getId());
         } else {
-            this.songLiveList = new MutableLiveData<>();
+            this.songLiveList = new MutableLiveData<>(Collections.emptyList());
         }
     }
 
@@ -76,7 +75,10 @@ public class PlaylistEditorViewModel extends AndroidViewModel {
 
     public void removeFromPlaylistSongLiveList(int position) {
         List<Child> songs = songLiveList.getValue();
-        Objects.requireNonNull(songs).remove(position);
+        if (songs == null || position < 0 || position >= songs.size()) {
+            return;
+        }
+        songs.remove(position);
         songLiveList.postValue(songs);
     }
 

@@ -9,9 +9,7 @@ import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
-import one.chandan.rubato.repository.ArtistRepository;
-import one.chandan.rubato.repository.GenreRepository;
-import one.chandan.rubato.repository.SongRepository;
+import one.chandan.rubato.repository.LibraryRepository;
 import one.chandan.rubato.subsonic.models.AlbumID3;
 import one.chandan.rubato.subsonic.models.ArtistID3;
 import one.chandan.rubato.subsonic.models.Child;
@@ -22,9 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SongListPageViewModel extends AndroidViewModel {
-    private final SongRepository songRepository;
-    private final ArtistRepository artistRepository;
-    private final GenreRepository genreRepository;
+    private final LibraryRepository libraryRepository;
 
     public String title;
     public String toolbarTitle;
@@ -45,9 +41,7 @@ public class SongListPageViewModel extends AndroidViewModel {
     public SongListPageViewModel(@NonNull Application application) {
         super(application);
 
-        songRepository = new SongRepository();
-        artistRepository = new ArtistRepository();
-        genreRepository = new GenreRepository();
+        libraryRepository = new LibraryRepository();
     }
 
     public LiveData<List<Child>> getSongList() {
@@ -55,19 +49,19 @@ public class SongListPageViewModel extends AndroidViewModel {
 
         switch (title) {
             case Constants.MEDIA_BY_GENRE:
-                songList = songRepository.getSongsByGenre(genre.getGenre(), 0);
+                songList = libraryRepository.getSongsByGenre(genre.getGenre(), 0);
                 break;
             case Constants.MEDIA_BY_ARTIST:
-                songList = artistRepository.getTopSongs(artist.getName(), 50);
+                songList = libraryRepository.getArtistTopSongs(artist.getName(), 50);
                 break;
             case Constants.MEDIA_BY_GENRES:
-                songList = songRepository.getSongsByGenres(filters);
+                songList = libraryRepository.getSongsByGenres(filters);
                 break;
             case Constants.MEDIA_BY_YEAR:
-                songList = songRepository.getRandomSample(maxNumberByYear, year, year + 10);
+                songList = libraryRepository.getRandomSample(maxNumberByYear, year, year + 10);
                 break;
             case Constants.MEDIA_STARRED:
-                songList = songRepository.getStarredSongs(false, -1);
+                songList = libraryRepository.getStarredSongs(false, -1);
                 break;
         }
 
@@ -79,7 +73,7 @@ public class SongListPageViewModel extends AndroidViewModel {
             relatedGenres = new MutableLiveData<>(new ArrayList<>());
         }
         if (Constants.MEDIA_BY_GENRE.equals(title) && genre != null) {
-            relatedGenres = genreRepository.getRelatedGenres(genre.getGenre(), 6);
+            relatedGenres = libraryRepository.getRelatedGenres(genre.getGenre(), 6);
         }
         return relatedGenres;
     }
@@ -92,7 +86,7 @@ public class SongListPageViewModel extends AndroidViewModel {
                 if (songCount > 0 && songCount % maxNumberByGenre != 0) return;
 
                 int page = songCount / maxNumberByGenre;
-                songRepository.getSongsByGenre(genre.getGenre(), page).observe(owner, children -> {
+                libraryRepository.getSongsByGenre(genre.getGenre(), page).observe(owner, children -> {
                     if (children != null && !children.isEmpty()) {
                         List<Child> currentMedia = songList.getValue();
                         currentMedia.addAll(children);

@@ -1,7 +1,10 @@
 package one.chandan.rubato.ui.adapter;
 
 import android.os.Bundle;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
 
@@ -9,14 +12,14 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
+import one.chandan.rubato.R;
 import one.chandan.rubato.databinding.ItemHomeDiscoverSongBinding;
 import one.chandan.rubato.glide.CustomGlideRequest;
 import one.chandan.rubato.interfaces.ClickCallback;
 import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.MusicUtil;
-import com.google.android.material.imageview.ShapeableImageView;
-import com.google.android.material.shape.AbsoluteCornerSize;
+import com.google.android.material.card.MaterialCardView;
 
 import java.util.Collections;
 import java.util.List;
@@ -52,16 +55,8 @@ public class DiscoverSongAdapter extends RecyclerView.Adapter<DiscoverSongAdapte
                 .build()
                 .into(holder.item.discoverSongCoverImageView);
 
-        if (holder.item.discoverSongCoverImageView instanceof ShapeableImageView) {
-            ShapeableImageView shapeableImageView = (ShapeableImageView) holder.item.discoverSongCoverImageView;
-            float radius = CustomGlideRequest.getCornerRadius(CustomGlideRequest.ResourceType.Album);
-            shapeableImageView.setShapeAppearanceModel(
-                    shapeableImageView.getShapeAppearanceModel()
-                            .toBuilder()
-                            .setAllCornerSizes(new AbsoluteCornerSize(radius))
-                            .build()
-            );
-        }
+        float ratio = CustomGlideRequest.getCornerRatio(CustomGlideRequest.ResourceType.Album);
+        applyRoundedCard(holder.item.discoverSongCoverCard, ratio);
     }
 
     @Override
@@ -122,6 +117,34 @@ public class DiscoverSongAdapter extends RecyclerView.Adapter<DiscoverSongAdapte
                 .scaleX(1.4f)
                 .scaleY(1.4f)
                 .start();
+    }
+
+    private void applyRoundedCard(MaterialCardView card, float ratio) {
+        if (card == null) return;
+        if (ratio <= 0f) {
+            card.setRadius(0f);
+            return;
+        }
+        View.OnLayoutChangeListener existing = null;
+        Object tag = card.getTag(R.id.tag_rounded_corner_listener);
+        if (tag instanceof View.OnLayoutChangeListener) {
+            existing = (View.OnLayoutChangeListener) tag;
+            card.removeOnLayoutChangeListener(existing);
+        }
+        updateRoundedCard(card, ratio);
+        View.OnLayoutChangeListener listener = (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+            updateRoundedCard(card, ratio);
+        };
+        card.addOnLayoutChangeListener(listener);
+        card.setTag(R.id.tag_rounded_corner_listener, listener);
+    }
+
+    private void updateRoundedCard(MaterialCardView card, float ratio) {
+        float minSize = Math.min(card.getWidth(), card.getHeight());
+        if (minSize <= 0f) {
+            return;
+        }
+        card.setRadius(Math.max(1f, minSize * ratio));
     }
 
     private static class SongDiffCallback extends DiffUtil.Callback {

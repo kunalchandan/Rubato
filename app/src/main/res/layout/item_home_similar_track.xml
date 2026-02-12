@@ -14,6 +14,31 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/made_for_you_shuffle_badge"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginBottom="8dp"
+        app:cardBackgroundColor="?attr/colorPrimary"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
+        app:strokeColor="?attr/colorOnPrimary"
+        app:strokeWidth="2dp"
+        app:layout_constraintBottom_toBottomOf="@id/track_cover_image_view"
+        app:layout_constraintStart_toStartOf="@id/track_cover_image_view">
+
+        <ImageView
+            android:id="@+id/made_for_you_shuffle_icon"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/home_title_discovery_shuffle_all_button"
+            android:alpha="0.55"
+            android:padding="6dp"
+            android:src="@drawable/ic_shuffle"
+            android:tint="?attr/colorOnPrimary" />
+    </com.google.android.material.card.MaterialCardView>
+
     <TextView
         android:id="@+id/title_track_label"
         style="@style/LabelMedium"

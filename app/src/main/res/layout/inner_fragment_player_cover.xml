@@ -62,15 +62,43 @@
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/now_playing_song_cover_button_group"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
         android:animateLayoutChanges="true"
         android:background="@drawable/gradient_player_cover_background_image"
         android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintBottom_toBottomOf="@+id/now_playing_song_cover_image_view"
+        app:layout_constraintEnd_toEndOf="@+id/now_playing_song_cover_image_view"
+        app:layout_constraintStart_toStartOf="@+id/now_playing_song_cover_image_view"
+        app:layout_constraintTop_toTopOf="@+id/now_playing_song_cover_image_view">
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/cover_guideline_vertical_left"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintGuide_percent="0.33" />
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/cover_guideline_vertical_right"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintGuide_percent="0.66" />
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/cover_guideline_horizontal_top"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            app:layout_constraintGuide_percent="0.33" />
+
+        <androidx.constraintlayout.widget.Guideline
+            android:id="@+id/cover_guideline_horizontal_bottom"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            app:layout_constraintGuide_percent="0.66" />
 
         <Button
             android:id="@+id/inner_button_top_left"
@@ -83,7 +111,24 @@
             android:insetRight="0dp"
             android:insetBottom="0dp"
             app:cornerRadius="30dp"
-            app:icon="@drawable/ic_file_download" />
+            app:icon="@drawable/ic_file_download"
+            app:layout_constraintBottom_toTopOf="@+id/cover_guideline_horizontal_top"
+            app:layout_constraintEnd_toStartOf="@+id/cover_guideline_vertical_left"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/inner_label_top_left"
+            style="@style/LabelSmall"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:alpha="0.85"
+            android:text="@string/player_cover_action_download"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="@id/inner_button_top_left"
+            app:layout_constraintStart_toStartOf="@id/inner_button_top_left"
+            app:layout_constraintTop_toBottomOf="@id/inner_button_top_left" />
 
         <Button
             android:id="@+id/inner_button_top_right"
@@ -96,7 +141,24 @@
             android:insetRight="0dp"
             android:insetBottom="0dp"
             app:cornerRadius="30dp"
-            app:icon="@drawable/ic_playlist_add" />
+            app:icon="@drawable/ic_playlist_add"
+            app:layout_constraintBottom_toTopOf="@+id/cover_guideline_horizontal_top"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/cover_guideline_vertical_right"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/inner_label_top_right"
+            style="@style/LabelSmall"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:alpha="0.85"
+            android:text="@string/player_cover_action_add_playlist"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="@id/inner_button_top_right"
+            app:layout_constraintStart_toStartOf="@id/inner_button_top_right"
+            app:layout_constraintTop_toBottomOf="@id/inner_button_top_right" />
 
         <Button
             android:id="@+id/inner_button_visualizer"
@@ -109,7 +171,24 @@
             android:insetRight="0dp"
             android:insetBottom="0dp"
             app:cornerRadius="30dp"
-            app:icon="@drawable/ic_graphic_eq" />
+            app:icon="@drawable/ic_graphic_eq"
+            app:layout_constraintBottom_toTopOf="@+id/cover_guideline_horizontal_bottom"
+            app:layout_constraintEnd_toStartOf="@+id/cover_guideline_vertical_right"
+            app:layout_constraintStart_toStartOf="@+id/cover_guideline_vertical_left"
+            app:layout_constraintTop_toTopOf="@+id/cover_guideline_horizontal_top" />
+
+        <TextView
+            android:id="@+id/inner_label_visualizer"
+            style="@style/LabelSmall"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:alpha="0.85"
+            android:text="@string/player_cover_action_visualizer"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="@id/inner_button_visualizer"
+            app:layout_constraintStart_toStartOf="@id/inner_button_visualizer"
+            app:layout_constraintTop_toBottomOf="@id/inner_button_visualizer" />
 
         <Button
             android:id="@+id/inner_button_bottom_left"
@@ -122,7 +201,24 @@
             android:insetRight="0dp"
             android:insetBottom="0dp"
             app:cornerRadius="30dp"
-            app:icon="@drawable/ic_mix_from_here" />
+            app:icon="@drawable/ic_radio"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/cover_guideline_vertical_left"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/cover_guideline_horizontal_bottom" />
+
+        <TextView
+            android:id="@+id/inner_label_song_radio"
+            style="@style/LabelSmall"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:alpha="0.85"
+            android:text="@string/player_cover_action_song_radio"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="@id/inner_button_bottom_left"
+            app:layout_constraintStart_toStartOf="@id/inner_button_bottom_left"
+            app:layout_constraintTop_toBottomOf="@id/inner_button_bottom_left" />
 
         <Button
             android:id="@+id/inner_button_bottom_right"
@@ -135,23 +231,11 @@
             android:insetRight="0dp"
             android:insetBottom="0dp"
             app:cornerRadius="30dp"
-            app:icon="@drawable/ic_bookmark" />
-
-        <androidx.constraintlayout.helper.widget.Flow
-            android:id="@+id/now_playing_cover_action_flow"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            app:constraint_referenced_ids="inner_button_top_left,inner_button_top_right,inner_button_visualizer,inner_button_bottom_left,inner_button_bottom_right"
-            app:flow_horizontalGap="16dp"
-            app:flow_horizontalStyle="packed"
-            app:flow_maxElementsWrap="3"
-            app:flow_verticalGap="16dp"
-            app:flow_verticalStyle="packed"
-            app:flow_wrapMode="chain"
+            app:icon="@drawable/ic_bookmark"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_constraintStart_toEndOf="@+id/cover_guideline_vertical_right"
+            app:layout_constraintTop_toBottomOf="@+id/cover_guideline_horizontal_bottom" />
 
         <Button
             android:id="@+id/inner_button_bottom_right_alternative"
@@ -169,6 +253,19 @@
             app:layout_constraintEnd_toEndOf="@+id/inner_button_bottom_right"
             app:layout_constraintStart_toStartOf="@+id/inner_button_bottom_right"
             app:layout_constraintTop_toTopOf="@+id/inner_button_bottom_right" />
+
+        <TextView
+            android:id="@+id/inner_label_lyrics"
+            style="@style/LabelSmall"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:alpha="0.85"
+            android:text="@string/player_cover_action_lyrics"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="@id/inner_button_bottom_right_alternative"
+            app:layout_constraintStart_toStartOf="@id/inner_button_bottom_right_alternative"
+            app:layout_constraintTop_toBottomOf="@id/inner_button_bottom_right_alternative" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>

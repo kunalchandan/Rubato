@@ -40,6 +40,12 @@ public class HomeTabRadioFragment extends Fragment implements ClickCallback, Rad
     private InternetRadioStationAdapter internetRadioStationAdapter;
 
     private ListenableFuture<MediaBrowser> mediaBrowserListenableFuture;
+    private final Handler refreshHandler = new Handler();
+    private final Runnable refreshRunnable = () -> {
+        if (radioViewModel != null) {
+            radioViewModel.refreshInternetRadioStations(getViewLifecycleOwner());
+        }
+    };
 
     @Nullable
     @Override
@@ -77,6 +83,7 @@ public class HomeTabRadioFragment extends Fragment implements ClickCallback, Rad
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        refreshHandler.removeCallbacks(refreshRunnable);
         bind = null;
     }
 
@@ -143,9 +150,7 @@ public class HomeTabRadioFragment extends Fragment implements ClickCallback, Rad
 
     @Override
     public void onDismiss() {
-        new Handler().postDelayed(() -> {
-            if (radioViewModel != null)
-                radioViewModel.refreshInternetRadioStations(getViewLifecycleOwner());
-        }, 1000);
+        refreshHandler.removeCallbacks(refreshRunnable);
+        refreshHandler.postDelayed(refreshRunnable, 1000);
     }
 }

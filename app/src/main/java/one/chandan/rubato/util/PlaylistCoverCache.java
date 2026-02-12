@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
@@ -38,7 +37,7 @@ import com.bumptech.glide.request.RequestOptions;
 
 public final class PlaylistCoverCache {
     private static final String DIR_NAME = "playlist_covers";
-    private static final ExecutorService IO_EXECUTOR = Executors.newSingleThreadExecutor();
+    private static final ExecutorService IO_EXECUTOR = AppExecutors.coverArt();
     private static final Set<String> IN_FLIGHT = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private static final int MAX_TILES = 4;
     private static final long LOAD_TIMEOUT_MS = 4000L;
@@ -79,7 +78,7 @@ public final class PlaylistCoverCache {
         if (bitmap == null) return null;
 
         RoundedBitmapDrawable rounded = RoundedBitmapDrawableFactory.create(context.getResources(), bitmap);
-        rounded.setCornerRadius(CustomGlideRequest.getCornerRadius(CustomGlideRequest.ResourceType.Playlist));
+        rounded.setCornerRadius(CustomGlideRequest.getCornerRadiusPx(bitmap.getWidth(), bitmap.getHeight(), CustomGlideRequest.ResourceType.Playlist));
         rounded.setAntiAlias(true);
         return rounded;
     }
@@ -143,7 +142,9 @@ public final class PlaylistCoverCache {
 
                 if (callback != null) {
                     Drawable drawable = RoundedBitmapDrawableFactory.create(context.getResources(), composite);
-                    ((RoundedBitmapDrawable) drawable).setCornerRadius(CustomGlideRequest.getCornerRadius(CustomGlideRequest.ResourceType.Playlist));
+                    ((RoundedBitmapDrawable) drawable).setCornerRadius(
+                            CustomGlideRequest.getCornerRadiusPx(drawable.getIntrinsicWidth(), drawable.getIntrinsicHeight(), CustomGlideRequest.ResourceType.Playlist)
+                    );
                     ((RoundedBitmapDrawable) drawable).setAntiAlias(true);
                     new Handler(Looper.getMainLooper()).post(() -> callback.onCompositeReady(drawable));
                 }

@@ -9,6 +9,7 @@ import androidx.media3.common.util.UnstableApi;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
+import one.chandan.rubato.R;
 import one.chandan.rubato.databinding.ItemLibraryArtistBinding;
 import one.chandan.rubato.glide.CustomGlideRequest;
 import one.chandan.rubato.interfaces.ClickCallback;
@@ -53,6 +54,11 @@ public class ArtistAdapter extends RecyclerView.Adapter<ArtistAdapter.ViewHolder
                 .from(holder.itemView.getContext(), artist.getCoverArtId(), CustomGlideRequest.ResourceType.Artist)
                 .build()
                 .into(holder.item.artistCoverImageView);
+    }
+
+    @Override
+    public int getItemViewType(int position) {
+        return R.layout.item_library_artist;
     }
 
     @Override

@@ -31,7 +31,9 @@ import one.chandan.rubato.ui.dialog.VisualizerSettingsDialog;
 import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.DownloadUtil;
 import one.chandan.rubato.util.MappingUtil;
+import one.chandan.rubato.util.MusicUtil;
 import one.chandan.rubato.util.Preferences;
+import one.chandan.rubato.util.AudioSessionStore;
 import one.chandan.rubato.viewmodel.PlayerBottomSheetViewModel;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -41,21 +43,15 @@ import androidx.media3.common.C;
 
 @UnstableApi
 public class PlayerCoverFragment extends Fragment {
-    private PlayerBottomSheetViewModel playerBottomSheetViewModel;
-    private InnerFragmentPlayerCoverBinding bind;
-    private ListenableFuture<MediaBrowser> mediaBrowserListenableFuture;
-    private VisualizerManager visualizerManager;
-    private int audioSessionId = C.AUDIO_SESSION_ID_UNSET;
-    private boolean isPlaying = false;
-    private boolean isMusic = true;
-    private CoverMode coverMode = CoverMode.COVER;
-
-    private final Handler handler = new Handler();
-
     private enum CoverMode {
         COVER,
         VISUALIZER
     }
+    private PlayerBottomSheetViewModel playerBottomSheetViewModel;
+    private InnerFragmentPlayerCoverBinding bind;
+    private ListenableFuture<MediaBrowser> mediaBrowserListenableFuture;
+    private final OverlayController overlayController = new OverlayController();
+    private final VisualizerController visualizerController = new VisualizerController();
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -64,9 +60,9 @@ public class PlayerCoverFragment extends Fragment {
 
         playerBottomSheetViewModel = new ViewModelProvider(requireActivity()).get(PlayerBottomSheetViewModel.class);
 
-        initOverlay();
+        overlayController.init();
         initInnerButton();
-        initVisualizer();
+        visualizerController.init();
 
         return view;
     }
@@ -76,58 +72,22 @@ public class PlayerCoverFragment extends Fragment {
         super.onStart();
         initializeBrowser();
         bindMediaController();
-        toggleOverlayVisibility(false);
+        overlayController.showOverlay(false);
     }
 
     @Override
     public void onStop() {
         releaseBrowser();
-        if (visualizerManager != null) {
-            visualizerManager.release();
-        }
+        overlayController.clear();
+        visualizerController.release();
         super.onStop();
     }
 
     @Override
     public void onDestroyView() {
+        overlayController.clear();
         super.onDestroyView();
         bind = null;
-    }
-
-    private void initTapButtonHideTransition() {
-        bind.nowPlayingTapButton.setVisibility(View.VISIBLE);
-
-        handler.removeCallbacksAndMessages(null);
-
-        final Runnable runnable = () -> {
-            if (bind != null) bind.nowPlayingTapButton.setVisibility(View.GONE);
-        };
-
-        handler.postDelayed(runnable, 10000);
-    }
-
-    private void initOverlay() {
-        bind.nowPlayingSongCoverImageView.setOnClickListener(view -> toggleOverlayVisibility(true));
-        bind.nowPlayingSongCoverButtonGroup.setOnClickListener(view -> toggleOverlayVisibility(false));
-        bind.nowPlayingTapButton.setOnClickListener(view -> toggleOverlayVisibility(true));
-    }
-
-    private void toggleOverlayVisibility(boolean isVisible) {
-        Transition transition = new Fade();
-        transition.setDuration(200);
-        transition.addTarget(bind.nowPlayingSongCoverButtonGroup);
-
-        TransitionManager.beginDelayedTransition(bind.getRoot(), transition);
-        bind.nowPlayingSongCoverButtonGroup.setVisibility(isVisible ? View.VISIBLE : View.GONE);
-        bind.nowPlayingTapButton.setVisibility(isVisible ? View.GONE : View.VISIBLE);
-
-        bind.innerButtonBottomRight.setVisibility(Preferences.isSyncronizationEnabled() ? View.VISIBLE : View.GONE);
-        bind.innerButtonBottomRightAlternative.setVisibility(Preferences.isSyncronizationEnabled() ? View.GONE : View.VISIBLE);
-        bind.nowPlayingVisualizerSettingsButton.setVisibility(
-                isVisible ? View.GONE : (shouldShowVisualizerSettings() ? View.VISIBLE : View.GONE)
-        );
-
-        if (!isVisible) initTapButtonHideTransition();
     }
 
     private void initInnerButton() {
@@ -152,6 +112,26 @@ public class PlayerCoverFragment extends Fragment {
 
                 bind.innerButtonBottomLeft.setOnClickListener(view -> {
                     playerBottomSheetViewModel.getMediaInstantMix(getViewLifecycleOwner(), song).observe(getViewLifecycleOwner(), media -> {
+                        if (media == null) {
+                            return;
+                        }
+                        if (media.isEmpty()) {
+                            if (getView() != null) {
+                                Snackbar.make(getView(), R.string.instant_mix_empty_snackbar, Snackbar.LENGTH_LONG).show();
+                            }
+                            return;
+                        }
+                        MusicUtil.ratingFilter(media);
+                        String currentId = song.getId();
+                        if (currentId != null) {
+                            media.removeIf(item -> item != null && currentId.equals(item.getId()));
+                        }
+                        if (media.isEmpty()) {
+                            if (getView() != null) {
+                                Snackbar.make(getView(), R.string.instant_mix_empty_snackbar, Snackbar.LENGTH_LONG).show();
+                            }
+                            return;
+                        }
                         MediaManager.enqueue(mediaBrowserListenableFuture, media, true);
                     });
                 });
@@ -172,37 +152,6 @@ public class PlayerCoverFragment extends Fragment {
                 });
             }
         });
-    }
-
-    private void initVisualizer() {
-        visualizerManager = new VisualizerManager();
-        visualizerManager.setListener(new VisualizerManager.Listener() {
-            @Override
-            public void onWaveformData(byte[] waveform, int samplingRate) {
-                if (bind != null) {
-                    bind.nowPlayingVisualizerView.setWaveform(waveform);
-                }
-            }
-
-            @Override
-            public void onError(Exception exception) {
-                if (getView() != null) {
-                    Snackbar.make(getView(), getString(R.string.visualizer_error_init), Snackbar.LENGTH_LONG).show();
-                }
-            }
-        });
-
-        bind.innerButtonVisualizer.setOnClickListener(view -> toggleVisualizerMode());
-        bind.nowPlayingVisualizerSettingsButton.setOnClickListener(view -> openVisualizerSettings());
-
-        getParentFragmentManager().setFragmentResultListener(
-                VisualizerSettingsDialog.RESULT_KEY,
-                this,
-                (requestKey, result) -> applyVisualizerPreferences()
-        );
-
-        applyVisualizerPreferences();
-        updateVisualizerUi();
     }
 
     private void initializeBrowser() {
@@ -226,27 +175,24 @@ public class PlayerCoverFragment extends Fragment {
 
     private void setMediaBrowserListener(MediaBrowser mediaBrowser) {
         setCover(mediaBrowser.getMediaMetadata());
-        updateMediaType(mediaBrowser.getMediaMetadata());
-        isPlaying = mediaBrowser.isPlaying();
-        updateVisualizerState();
-
+        visualizerController.updateMediaType(mediaBrowser.getMediaMetadata());
+        visualizerController.setPlaying(mediaBrowser.isPlaying());
         mediaBrowser.addListener(new Player.Listener() {
             @Override
             public void onMediaMetadataChanged(@NonNull MediaMetadata mediaMetadata) {
                 setCover(mediaMetadata);
-                updateMediaType(mediaMetadata);
-                toggleOverlayVisibility(false);
+                visualizerController.updateMediaType(mediaMetadata);
+                overlayController.showOverlay(false);
             }
 
             @Override
             public void onAudioSessionIdChanged(int audioSessionId) {
-                updateAudioSessionId(audioSessionId);
+                visualizerController.updateAudioSessionId(audioSessionId);
             }
 
             @Override
             public void onIsPlayingChanged(boolean isPlayingNow) {
-                isPlaying = isPlayingNow;
-                updateVisualizerState();
+                visualizerController.setPlaying(isPlayingNow);
             }
         });
     }
@@ -258,109 +204,265 @@ public class PlayerCoverFragment extends Fragment {
                 .into(bind.nowPlayingSongCoverImageView);
     }
 
-    private void toggleVisualizerMode() {
-        if (!Preferences.isVisualizerEnabled()) {
-            if (getView() != null) {
-                Snackbar.make(getView(), getString(R.string.visualizer_disabled_message), Snackbar.LENGTH_LONG).show();
+    private class OverlayController {
+        private final Handler handler = new Handler();
+        private Runnable tapButtonHideRunnable;
+        private Runnable subtitleRevealRunnable;
+
+        void init() {
+            bind.nowPlayingSongCoverImageView.setOnClickListener(view -> showOverlay(true));
+            bind.nowPlayingSongCoverButtonGroup.setOnClickListener(view -> showOverlay(false));
+            bind.nowPlayingTapButton.setOnClickListener(view -> showOverlay(true));
+        }
+
+        void showOverlay(boolean isVisible) {
+            if (bind == null) return;
+            handler.removeCallbacksAndMessages(null);
+
+            Transition transition = new Fade();
+            transition.setDuration(200);
+            transition.addTarget(bind.nowPlayingSongCoverButtonGroup);
+
+            TransitionManager.beginDelayedTransition(bind.getRoot(), transition);
+            bind.nowPlayingSongCoverButtonGroup.setVisibility(isVisible ? View.VISIBLE : View.GONE);
+            bind.nowPlayingTapButton.setVisibility(isVisible ? View.GONE : View.VISIBLE);
+
+            bind.innerButtonBottomRight.setVisibility(Preferences.isSyncronizationEnabled() ? View.VISIBLE : View.GONE);
+            bind.innerButtonBottomRightAlternative.setVisibility(Preferences.isSyncronizationEnabled() ? View.GONE : View.VISIBLE);
+            bind.innerLabelLyrics.setVisibility(View.GONE);
+            bind.innerLabelTopLeft.setVisibility(View.GONE);
+            bind.innerLabelTopRight.setVisibility(View.GONE);
+            bind.innerLabelVisualizer.setVisibility(View.GONE);
+            visualizerController.updateSettingsButtonVisibility(isVisible);
+
+            if (!isVisible) {
+                scheduleTapButtonHide();
+                cancelSubtitleReveal();
+            } else {
+                scheduleSubtitleReveal();
             }
-            return;
         }
-        boolean canUseSession = audioSessionId != C.AUDIO_SESSION_ID_UNSET && audioSessionId != 0;
-        if (!canUseSession && coverMode != CoverMode.VISUALIZER) {
-            if (getView() != null) {
-                Snackbar.make(getView(), getString(R.string.visualizer_unavailable_session), Snackbar.LENGTH_SHORT).show();
+
+        void clear() {
+            handler.removeCallbacksAndMessages(null);
+            tapButtonHideRunnable = null;
+            subtitleRevealRunnable = null;
+        }
+
+        private void scheduleTapButtonHide() {
+            if (bind == null) return;
+            bind.nowPlayingTapButton.setVisibility(View.VISIBLE);
+            tapButtonHideRunnable = () -> {
+                if (bind != null) bind.nowPlayingTapButton.setVisibility(View.GONE);
+            };
+            handler.postDelayed(tapButtonHideRunnable, 10000);
+        }
+
+        private void scheduleSubtitleReveal() {
+            if (bind == null) return;
+            subtitleRevealRunnable = () -> {
+                if (bind == null) return;
+                if (bind.nowPlayingSongCoverButtonGroup.getVisibility() != View.VISIBLE) return;
+                bind.innerLabelTopLeft.setVisibility(View.VISIBLE);
+                bind.innerLabelTopRight.setVisibility(View.VISIBLE);
+                bind.innerLabelVisualizer.setVisibility(View.VISIBLE);
+                if (bind.innerLabelSongRadio != null) {
+                    bind.innerLabelSongRadio.setVisibility(View.VISIBLE);
+                }
+                if (bind.innerButtonBottomRightAlternative.getVisibility() == View.VISIBLE) {
+                    bind.innerLabelLyrics.setVisibility(View.VISIBLE);
+                }
+            };
+            handler.postDelayed(subtitleRevealRunnable, 1000);
+        }
+
+        private void cancelSubtitleReveal() {
+            if (subtitleRevealRunnable != null) {
+                handler.removeCallbacks(subtitleRevealRunnable);
+                subtitleRevealRunnable = null;
             }
-            return;
+            if (bind != null) {
+                bind.innerLabelLyrics.setVisibility(View.GONE);
+                bind.innerLabelTopLeft.setVisibility(View.GONE);
+                bind.innerLabelTopRight.setVisibility(View.GONE);
+                bind.innerLabelVisualizer.setVisibility(View.GONE);
+                if (bind.innerLabelSongRadio != null) {
+                    bind.innerLabelSongRadio.setVisibility(View.GONE);
+                }
+            }
         }
-        if (coverMode == CoverMode.VISUALIZER) {
-            coverMode = CoverMode.COVER;
-        } else {
-            coverMode = CoverMode.VISUALIZER;
-        }
-        updateVisualizerUi();
-        toggleOverlayVisibility(false);
     }
 
-    private void openVisualizerSettings() {
-        VisualizerSettingsDialog dialog = new VisualizerSettingsDialog();
-        dialog.show(getParentFragmentManager(), "VisualizerSettingsDialog");
-    }
+    private class VisualizerController {
+        private final VisualizerManager visualizerManager = new VisualizerManager();
+        private int audioSessionId = C.AUDIO_SESSION_ID_UNSET;
+        private boolean isPlaying = false;
+        private boolean isMusic = true;
+        private CoverMode coverMode = CoverMode.COVER;
 
-    private void applyVisualizerPreferences() {
-        if (bind == null) return;
-        int barCount = Preferences.getVisualizerBarCount();
-        float opacity = Preferences.getVisualizerOpacity();
-        float smoothing = Preferences.getVisualizerSmoothing();
-        float scale = Preferences.getVisualizerScale();
-        int fps = Preferences.getVisualizerFps();
-        int colorMode = "gradient".equals(Preferences.getVisualizerColorMode())
-                ? one.chandan.rubato.ui.view.VisualizerView.COLOR_MODE_GRADIENT
-                : one.chandan.rubato.ui.view.VisualizerView.COLOR_MODE_ACCENT;
-        String modePreference = Preferences.getVisualizerMode();
-        int mode = one.chandan.rubato.ui.view.VisualizerView.MODE_BARS;
-        if ("line".equals(modePreference)) {
-            mode = one.chandan.rubato.ui.view.VisualizerView.MODE_LINE;
-        } else if ("dots".equals(modePreference)) {
-            mode = one.chandan.rubato.ui.view.VisualizerView.MODE_DOTS;
+        void init() {
+            visualizerManager.setListener(new VisualizerManager.Listener() {
+                @Override
+                public void onWaveformData(byte[] waveform, int samplingRate) {
+                    if (bind != null) {
+                        bind.nowPlayingVisualizerView.setWaveform(waveform);
+                    }
+                }
+
+                @Override
+                public void onFftData(byte[] fft, int samplingRate) {
+                    if (bind != null) {
+                        bind.nowPlayingVisualizerView.setFft(fft, samplingRate);
+                    }
+                }
+
+                @Override
+                public void onError(Exception exception) {
+                    if (getView() != null) {
+                        int message = exception instanceof SecurityException
+                                ? R.string.visualizer_permission_required
+                                : R.string.visualizer_error_init;
+                        Snackbar.make(getView(), getString(message), Snackbar.LENGTH_LONG).show();
+                    }
+                }
+            });
+
+            bind.innerButtonVisualizer.setOnClickListener(view -> toggleVisualizerMode());
+            bind.nowPlayingVisualizerSettingsButton.setOnClickListener(view -> openVisualizerSettings());
+
+            AudioSessionStore.getAudioSessionId().observe(getViewLifecycleOwner(), sessionId -> {
+                int resolved = sessionId != null ? sessionId : C.AUDIO_SESSION_ID_UNSET;
+                updateAudioSessionId(resolved);
+            });
+
+            getParentFragmentManager().setFragmentResultListener(
+                    VisualizerSettingsDialog.RESULT_KEY,
+                    PlayerCoverFragment.this,
+                    (requestKey, result) -> applyVisualizerPreferences()
+            );
+
+            applyVisualizerPreferences();
+            updateVisualizerUi();
         }
-        boolean peakCaps = Preferences.isVisualizerPeakCapsEnabled();
 
-        bind.nowPlayingVisualizerView.setConfig(barCount, opacity, smoothing, scale, fps, colorMode, peakCaps, mode);
-
-        visualizerManager.setTargetFps(fps);
-        visualizerManager.setCaptureSize(barCount >= 64 ? 512 : 256);
-        updateVisualizerUi();
-    }
-
-    private void updateMediaType(MediaMetadata mediaMetadata) {
-        if (mediaMetadata.extras != null) {
-            isMusic = Constants.MEDIA_TYPE_MUSIC.equals(mediaMetadata.extras.getString("type", Constants.MEDIA_TYPE_MUSIC));
-        } else {
-            isMusic = true;
+        void release() {
+            visualizerManager.release();
         }
-        updateVisualizerUi();
-    }
 
-    private void updateAudioSessionId(int audioSessionId) {
-        this.audioSessionId = audioSessionId;
-        if (visualizerManager != null) {
+        void updateMediaType(MediaMetadata mediaMetadata) {
+            if (mediaMetadata.extras != null) {
+                String type = mediaMetadata.extras.getString("type", Constants.MEDIA_TYPE_MUSIC);
+                isMusic = Constants.MEDIA_TYPE_MUSIC.equals(type) || Constants.MEDIA_TYPE_LOCAL.equals(type);
+            } else {
+                isMusic = true;
+            }
+            updateVisualizerUi();
+        }
+
+        void updateAudioSessionId(int audioSessionId) {
+            this.audioSessionId = audioSessionId;
             visualizerManager.setAudioSessionId(audioSessionId);
+            updateVisualizerState();
         }
-        updateVisualizerState();
-    }
 
-    private void updateVisualizerUi() {
-        if (bind == null) return;
-        if (!Preferences.isVisualizerEnabled()) {
-            coverMode = CoverMode.COVER;
+        void setPlaying(boolean isPlaying) {
+            this.isPlaying = isPlaying;
+            updateVisualizerState();
         }
-        boolean showVisualizer = coverMode == CoverMode.VISUALIZER;
-        bind.nowPlayingVisualizerView.setVisibility(showVisualizer ? View.VISIBLE : View.GONE);
-        bind.nowPlayingVisualizerSettingsButton.setVisibility(shouldShowVisualizerSettings() ? View.VISIBLE : View.GONE);
-        bind.innerButtonVisualizer.setVisibility(isMusic && Preferences.isVisualizerEnabled() ? View.VISIBLE : View.GONE);
 
-        if (!isMusic) {
-            coverMode = CoverMode.COVER;
-            bind.nowPlayingVisualizerView.setVisibility(View.GONE);
-            bind.nowPlayingVisualizerSettingsButton.setVisibility(View.GONE);
+        void updateSettingsButtonVisibility(boolean overlayVisible) {
+            if (bind == null) return;
+            bind.nowPlayingVisualizerSettingsButton.setVisibility(
+                    overlayVisible ? View.GONE : (shouldShowVisualizerSettings() ? View.VISIBLE : View.GONE)
+            );
         }
-        updateVisualizerState();
+
+        private void toggleVisualizerMode() {
+            if (!Preferences.isVisualizerEnabled()) {
+                if (getView() != null) {
+                    Snackbar.make(getView(), getString(R.string.visualizer_disabled_message), Snackbar.LENGTH_LONG).show();
+                }
+                return;
+            }
+            coverMode = coverMode == CoverMode.VISUALIZER ? CoverMode.COVER : CoverMode.VISUALIZER;
+            updateVisualizerUi();
+            overlayController.showOverlay(false);
+        }
+
+        private void openVisualizerSettings() {
+            VisualizerSettingsDialog dialog = new VisualizerSettingsDialog();
+            dialog.show(getParentFragmentManager(), "VisualizerSettingsDialog");
+        }
+
+        private void applyVisualizerPreferences() {
+            if (bind == null) return;
+            int barCount = Preferences.getVisualizerBarCount();
+            float opacity = Preferences.getVisualizerOpacity();
+            float smoothing = Preferences.getVisualizerSmoothing();
+            float scale = Preferences.getVisualizerScale();
+            int fps = Preferences.getVisualizerFps();
+            int colorMode = "gradient".equals(Preferences.getVisualizerColorMode())
+                    ? one.chandan.rubato.ui.view.VisualizerView.COLOR_MODE_GRADIENT
+                    : one.chandan.rubato.ui.view.VisualizerView.COLOR_MODE_ACCENT;
+            String modePreference = Preferences.getVisualizerMode();
+            int mode = one.chandan.rubato.ui.view.VisualizerView.MODE_BARS;
+            if ("line".equals(modePreference)) {
+                mode = one.chandan.rubato.ui.view.VisualizerView.MODE_LINE;
+            } else if ("dots".equals(modePreference)) {
+                mode = one.chandan.rubato.ui.view.VisualizerView.MODE_DOTS;
+            }
+            boolean peakCaps = Preferences.isVisualizerPeakCapsEnabled();
+
+            bind.nowPlayingVisualizerView.setConfig(barCount, opacity, smoothing, scale, fps, colorMode, peakCaps, mode);
+
+            visualizerManager.setTargetFps(fps);
+            int captureSize = barCount >= 64 ? 1024 : (barCount >= 48 ? 512 : 256);
+            visualizerManager.setCaptureSize(captureSize);
+            updateVisualizerUi();
+        }
+
+        private void updateVisualizerUi() {
+            if (bind == null) return;
+            if (!Preferences.isVisualizerEnabled()) {
+                coverMode = CoverMode.COVER;
+            }
+            boolean showVisualizer = coverMode == CoverMode.VISUALIZER;
+            bind.nowPlayingVisualizerView.setVisibility(showVisualizer ? View.VISIBLE : View.GONE);
+            updateSettingsButtonVisibility(isOverlayVisible());
+            bind.innerButtonVisualizer.setVisibility(isMusic && Preferences.isVisualizerEnabled() ? View.VISIBLE : View.GONE);
+
+            if (!isMusic) {
+                coverMode = CoverMode.COVER;
+                bind.nowPlayingVisualizerView.setVisibility(View.GONE);
+                bind.nowPlayingVisualizerSettingsButton.setVisibility(View.GONE);
+            }
+            updateVisualizerState();
+        }
+
+        private void updateVisualizerState() {
+            if (bind == null) return;
+            boolean canUseSession = audioSessionId != C.AUDIO_SESSION_ID_UNSET && audioSessionId != 0;
+            boolean shouldEnableCapture = coverMode == CoverMode.VISUALIZER
+                    && Preferences.isVisualizerEnabled()
+                    && isPlaying
+                    && isMusic
+                    && canUseSession;
+
+            visualizerManager.setEnabled(shouldEnableCapture);
+            boolean shouldRender = coverMode == CoverMode.VISUALIZER
+                    && Preferences.isVisualizerEnabled()
+                    && isMusic;
+            bind.nowPlayingVisualizerView.setActive(shouldRender);
+        }
+
+        private boolean shouldShowVisualizerSettings() {
+            return coverMode == CoverMode.VISUALIZER && Preferences.isVisualizerEnabled();
+        }
+
+        private boolean isOverlayVisible() {
+            return bind != null && bind.nowPlayingSongCoverButtonGroup.getVisibility() == View.VISIBLE;
+        }
+
     }
 
-    private void updateVisualizerState() {
-        if (bind == null || visualizerManager == null) return;
-        boolean canUseSession = audioSessionId != C.AUDIO_SESSION_ID_UNSET && audioSessionId != 0;
-        boolean shouldEnable = coverMode == CoverMode.VISUALIZER
-                && Preferences.isVisualizerEnabled()
-                && isPlaying
-                && isMusic
-                && canUseSession;
-
-        visualizerManager.setEnabled(shouldEnable);
-        bind.nowPlayingVisualizerView.setActive(shouldEnable);
-    }
-
-    private boolean shouldShowVisualizerSettings() {
-        return coverMode == CoverMode.VISUALIZER && Preferences.isVisualizerEnabled();
-    }
 }

@@ -26,6 +26,8 @@ public class VisualizerView extends View {
 
     private static final float BASELINE = 0.02f;
     private static final float PEAK_FALLOFF = 0.015f;
+    private static final float NOISE_FLOOR = 0.03f;
+    private static final float MIN_DB = -60f;
 
     private final Paint barPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint peakPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -37,9 +39,16 @@ public class VisualizerView extends View {
     private final Choreographer.FrameCallback frameCallback = this::onFrame;
 
     private byte[] waveformBuffer;
+    private byte[] fftBuffer;
+    private int fftSamplingRate = 0;
     private boolean waveformDirty = false;
+    private boolean fftDirty = false;
+    private boolean hasCapturedData = false;
+    private float peakTracker = 0.35f;
 
     private float[] targetAmplitudes = new float[0];
+    private float[] bandSmoothed = new float[0];
+    private float[] filteredAmplitudes = new float[0];
     private float[] currentAmplitudes = new float[0];
     private float[] peakAmplitudes = new float[0];
     private float[] barLeft = new float[0];
@@ -133,6 +142,19 @@ public class VisualizerView extends View {
         if (active) start();
     }
 
+    public void setFft(byte[] fft, int samplingRate) {
+        if (fft == null || fft.length == 0) return;
+        synchronized (waveformLock) {
+            if (fftBuffer == null || fftBuffer.length != fft.length) {
+                fftBuffer = new byte[fft.length];
+            }
+            System.arraycopy(fft, 0, fftBuffer, 0, fft.length);
+            fftSamplingRate = samplingRate;
+            fftDirty = true;
+        }
+        if (active) start();
+    }
+
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
@@ -212,12 +234,16 @@ public class VisualizerView extends View {
 
     private void rebuildArrays() {
         targetAmplitudes = new float[barCount];
+        bandSmoothed = new float[barCount];
+        filteredAmplitudes = new float[barCount];
         currentAmplitudes = new float[barCount];
         peakAmplitudes = new float[barCount];
         barLeft = new float[barCount];
         barRight = new float[barCount];
         barCenter = new float[barCount];
         linePoints = barCount > 1 ? new float[(barCount - 1) * 4] : new float[0];
+        hasCapturedData = false;
+        peakTracker = 0.35f;
         rebuildBarPositions();
     }
 
@@ -251,19 +277,37 @@ public class VisualizerView extends View {
     }
 
     private void updateAmplitudes() {
-        boolean hasWaveform = false;
+        boolean hasNewData = false;
         synchronized (waveformLock) {
-            if (waveformDirty && waveformBuffer != null) {
-                computeTargetAmplitudes(waveformBuffer);
+            if (fftDirty && fftBuffer != null) {
+                computeTargetAmplitudesFromFft(fftBuffer, fftSamplingRate);
+                fftDirty = false;
+                hasNewData = true;
+            } else if (waveformDirty && waveformBuffer != null) {
+                computeTargetAmplitudesFromWaveform(waveformBuffer);
                 waveformDirty = false;
-                hasWaveform = true;
+                hasNewData = true;
             }
         }
+        if (hasNewData) {
+            hasCapturedData = true;
+        }
+        boolean hasData = hasCapturedData;
 
-        float response = 1f - smoothing;
+        float rise = getRise();
+        float fall = getFall();
+        float bandAlpha = getBandAlpha();
         for (int i = 0; i < barCount; i++) {
-            float target = active && hasWaveform ? targetAmplitudes[i] : BASELINE;
-            float current = currentAmplitudes[i] + (target - currentAmplitudes[i]) * response;
+            float rawTarget = active && hasData ? targetAmplitudes[i] : BASELINE;
+            float filtered = filteredAmplitudes[i] + (rawTarget - filteredAmplitudes[i]) * bandAlpha;
+            filteredAmplitudes[i] = filtered;
+
+            float current = currentAmplitudes[i];
+            if (filtered > current) {
+                current += (filtered - current) * rise;
+            } else {
+                current = Math.max(filtered, current - fall);
+            }
             currentAmplitudes[i] = current;
 
             if (peakCaps) {
@@ -277,7 +321,7 @@ public class VisualizerView extends View {
         }
     }
 
-    private void computeTargetAmplitudes(byte[] waveform) {
+    private void computeTargetAmplitudesFromWaveform(byte[] waveform) {
         int samples = waveform.length;
         if (samples == 0 || barCount == 0) return;
         int samplesPerBar = Math.max(1, samples / barCount);
@@ -285,14 +329,128 @@ public class VisualizerView extends View {
         for (int i = 0; i < barCount; i++) {
             int start = i * samplesPerBar;
             int end = Math.min(samples, start + samplesPerBar);
-            float max = 0f;
+            float sum = 0f;
             for (int j = start; j < end; j++) {
-                float value = Math.abs(waveform[j]) / 128f;
-                if (value > max) max = value;
+                float value = waveform[j] / 128f;
+                sum += (value * value);
             }
-            float scaled = Math.min(1f, max * scale);
+            float rms = (float) Math.sqrt(sum / Math.max(1, end - start));
+            float scaled = Math.min(1f, rms * scale);
+            if (scaled < NOISE_FLOOR) {
+                scaled = 0f;
+            }
             targetAmplitudes[i] = Math.max(BASELINE, scaled);
         }
+        applyAutoGain();
+    }
+
+    private void computeTargetAmplitudesFromFft(byte[] fft, int samplingRate) {
+        int binCount = fft.length / 2;
+        if (binCount <= 0 || barCount == 0) return;
+
+        float sampleRateHz = resolveSamplingRateHz(samplingRate);
+        float nyquist = Math.max(2000f, sampleRateHz / 2f);
+        float minFreq = 20f;
+        float maxFreq = Math.max(minFreq + 1f, nyquist);
+        float minLog = (float) Math.log10(minFreq);
+        float maxLog = (float) Math.log10(maxFreq);
+        float binResolution = nyquist / binCount;
+
+        for (int i = 0; i < barCount; i++) {
+            float startLog = minLog + (maxLog - minLog) * (i / (float) barCount);
+            float endLog = minLog + (maxLog - minLog) * ((i + 1) / (float) barCount);
+            float startFreq = (float) Math.pow(10f, startLog);
+            float endFreq = (float) Math.pow(10f, endLog);
+            int startBin = clampInt((int) (startFreq / binResolution), 0, binCount - 1);
+            int endBin = clampInt((int) Math.ceil(endFreq / binResolution), startBin + 1, binCount - 1);
+
+            float sum = 0f;
+            float weightSum = 0f;
+            for (int bin = startBin; bin <= endBin; bin++) {
+                int idx = bin * 2;
+                float real = fft[idx] / 128f;
+                float imag = fft[idx + 1] / 128f;
+                float magnitude = (float) Math.hypot(real, imag);
+                float weight = 1f;
+                sum += magnitude * weight;
+                weightSum += weight;
+            }
+            float avg = weightSum > 0f ? sum / weightSum : 0f;
+            float db = 20f * (float) Math.log10(Math.max(1e-4f, avg));
+            float normalized = clamp((db - MIN_DB) / -MIN_DB, 0f, 1f);
+            float shaped = (float) Math.pow(normalized, 0.9f);
+            float scaled = Math.min(1f, shaped * scale);
+            if (scaled < NOISE_FLOOR) {
+                scaled = 0f;
+            }
+            targetAmplitudes[i] = Math.max(BASELINE, scaled);
+        }
+
+        smoothAcrossBands();
+        applyAutoGain();
+    }
+
+    private void smoothAcrossBands() {
+        if (barCount < 3) return;
+        bandSmoothed[0] = targetAmplitudes[0];
+        for (int i = 1; i < barCount - 1; i++) {
+            bandSmoothed[i] = (targetAmplitudes[i - 1] + (targetAmplitudes[i] * 2f) + targetAmplitudes[i + 1]) * 0.25f;
+        }
+        bandSmoothed[barCount - 1] = targetAmplitudes[barCount - 1];
+        System.arraycopy(bandSmoothed, 0, targetAmplitudes, 0, barCount);
+    }
+
+    private float resolveSamplingRateHz(int samplingRate) {
+        if (samplingRate <= 0) {
+            return 44100f;
+        }
+        if (samplingRate > 100000) {
+            return samplingRate / 1000f;
+        }
+        return samplingRate;
+    }
+
+    private void applyAutoGain() {
+        float framePeak = 0f;
+        for (int i = 0; i < barCount; i++) {
+            framePeak = Math.max(framePeak, targetAmplitudes[i]);
+        }
+        if (framePeak <= BASELINE + 0.01f) {
+            peakTracker = Math.max(BASELINE, peakTracker - getPeakDecay());
+            return;
+        }
+        if (framePeak > peakTracker) {
+            peakTracker = framePeak;
+        } else {
+            peakTracker = Math.max(framePeak, peakTracker - getPeakDecay());
+        }
+        float gain = 1f / Math.max(0.15f, peakTracker);
+        for (int i = 0; i < barCount; i++) {
+            float scaled = targetAmplitudes[i] * gain;
+            targetAmplitudes[i] = clamp(scaled, BASELINE, 1f);
+        }
+    }
+
+    private float getPeakDecay() {
+        float damping = clamp(smoothing, 0.05f, 0.95f);
+        float base = 0.4f / Math.max(15f, fps);
+        return clamp(base * (0.6f + (1f - damping)), 0.004f, 0.03f);
+    }
+
+    private float getRise() {
+        float damping = clamp(smoothing, 0.05f, 0.95f);
+        return clamp(0.22f * (1f - damping) + 0.06f, 0.04f, 0.4f);
+    }
+
+    private float getFall() {
+        float damping = clamp(smoothing, 0.05f, 0.95f);
+        float base = 0.6f / Math.max(15f, fps);
+        return clamp(base * (0.6f + (1f - damping)), 0.005f, 0.05f);
+    }
+
+    private float getBandAlpha() {
+        float damping = clamp(smoothing, 0.05f, 0.95f);
+        return clamp(0.12f + (1f - damping) * 0.25f, 0.08f, 0.45f);
     }
 
     private void updatePaints() {
@@ -389,6 +547,10 @@ public class VisualizerView extends View {
     }
 
     private float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private int clampInt(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
     }
 }

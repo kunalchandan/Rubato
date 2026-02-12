@@ -26,8 +26,7 @@ import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.ui.activity.MainActivity;
 import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.MusicUtil;
-import one.chandan.rubato.util.NetworkUtil;
-import one.chandan.rubato.util.OfflineMediaUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.viewmodel.ArtistBottomSheetViewModel;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -73,8 +72,6 @@ public class ArtistBottomSheetDialog extends BottomSheetDialogFragment implement
 
     // TODO Utilizzare il viewmodel come tramite ed evitare le chiamate dirette
     private void init(View view) {
-        boolean isOffline = NetworkUtil.isOffline();
-
         ImageView coverArtist = view.findViewById(R.id.artist_cover_image_view);
         CustomGlideRequest.Builder
                 .from(requireContext(), artistBottomSheetViewModel.getArtist().getCoverArtId(), CustomGlideRequest.ResourceType.Artist)
@@ -106,7 +103,7 @@ public class ArtistBottomSheetDialog extends BottomSheetDialogFragment implement
                 dismissBottomSheet();
             });
         });
-        setActionEnabled(playRadio, !isOffline);
+        setActionEnabled(playRadio, OfflinePolicy.canPlayRadio());
 
         TextView playRandom = view.findViewById(R.id.play_random_text_view);
         playRandom.setOnClickListener(v -> {
@@ -114,7 +111,7 @@ public class ArtistBottomSheetDialog extends BottomSheetDialogFragment implement
             artistRepository.getRandomSong(artist, 50).observe(getViewLifecycleOwner(), songs -> {
                 MusicUtil.ratingFilter(songs);
 
-                List<Child> playable = OfflineMediaUtil.filterPlayable(requireContext(), songs);
+                List<Child> playable = OfflinePolicy.filterPlayable(requireContext(), songs);
                 if (!playable.isEmpty()) {
                     MediaManager.startQueue(mediaBrowserListenableFuture, playable, 0);
                     ((MainActivity) requireActivity()).setBottomSheetInPeek(true);
@@ -127,6 +124,7 @@ public class ArtistBottomSheetDialog extends BottomSheetDialogFragment implement
                 dismissBottomSheet();
             });
         });
+        setActionEnabled(playRandom, OfflinePolicy.canPlayRandom());
     }
 
     @Override

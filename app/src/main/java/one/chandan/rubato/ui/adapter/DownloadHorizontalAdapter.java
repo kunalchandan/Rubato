@@ -1,6 +1,8 @@
 package one.chandan.rubato.ui.adapter;
 
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -326,6 +328,8 @@ public class DownloadHorizontalAdapter extends RecyclerView.Adapter<DownloadHori
 
     private void initTrackLayout(ViewHolder holder, int position) {
         Child song = grouped.get(position);
+        Drawable placeholder = CustomGlideRequest.getPlaceholderDrawable(holder.itemView.getContext(), CustomGlideRequest.ResourceType.Song);
+        holder.item.itemCoverImageView.setImageDrawable(placeholder);
 
         holder.item.downloadedItemTitleTextView.setText(song.getTitle());
         holder.item.downloadedItemSubtitleTextView.setText(
@@ -339,9 +343,13 @@ public class DownloadHorizontalAdapter extends RecyclerView.Adapter<DownloadHori
 
         holder.item.downloadedItemPreTextView.setText(song.getAlbum());
 
+        String coverArtId = resolveCoverArtId(song);
         CustomGlideRequest.Builder
-                .from(holder.itemView.getContext(), song.getCoverArtId(), CustomGlideRequest.ResourceType.Song)
+                .from(holder.itemView.getContext(), coverArtId, CustomGlideRequest.ResourceType.Song)
                 .build()
+                .placeholder(placeholder)
+                .error(placeholder)
+                .fallback(placeholder)
                 .into(holder.item.itemCoverImageView);
 
         holder.item.itemCoverImageView.setVisibility(View.VISIBLE);
@@ -357,14 +365,20 @@ public class DownloadHorizontalAdapter extends RecyclerView.Adapter<DownloadHori
 
     private void initAlbumLayout(ViewHolder holder, int position) {
         Child song = grouped.get(position);
+        Drawable placeholder = CustomGlideRequest.getPlaceholderDrawable(holder.itemView.getContext(), CustomGlideRequest.ResourceType.Album);
+        holder.item.itemCoverImageView.setImageDrawable(placeholder);
 
         holder.item.downloadedItemTitleTextView.setText(song.getAlbum());
         holder.item.downloadedItemSubtitleTextView.setText(holder.itemView.getContext().getString(R.string.download_item_single_subtitle_formatter, countSong(Constants.DOWNLOAD_TYPE_ALBUM, song.getAlbumId(), songs)));
         holder.item.downloadedItemPreTextView.setText(song.getArtist());
 
+        String coverArtId = resolveCoverArtId(song);
         CustomGlideRequest.Builder
-                .from(holder.itemView.getContext(), song.getCoverArtId(), CustomGlideRequest.ResourceType.Song)
+                .from(holder.itemView.getContext(), coverArtId, CustomGlideRequest.ResourceType.Album)
                 .build()
+                .placeholder(placeholder)
+                .error(placeholder)
+                .fallback(placeholder)
                 .into(holder.item.itemCoverImageView);
 
         holder.item.itemCoverImageView.setVisibility(View.VISIBLE);
@@ -380,13 +394,19 @@ public class DownloadHorizontalAdapter extends RecyclerView.Adapter<DownloadHori
 
     private void initArtistLayout(ViewHolder holder, int position) {
         Child song = grouped.get(position);
+        Drawable placeholder = CustomGlideRequest.getPlaceholderDrawable(holder.itemView.getContext(), CustomGlideRequest.ResourceType.Artist);
+        holder.item.itemCoverImageView.setImageDrawable(placeholder);
 
         holder.item.downloadedItemTitleTextView.setText(song.getArtist());
         holder.item.downloadedItemSubtitleTextView.setText(holder.itemView.getContext().getString(R.string.download_item_single_subtitle_formatter, countSong(Constants.DOWNLOAD_TYPE_ARTIST, song.getArtistId(), songs)));
 
+        String coverArtId = resolveCoverArtId(song);
         CustomGlideRequest.Builder
-                .from(holder.itemView.getContext(), song.getCoverArtId(), CustomGlideRequest.ResourceType.Song)
+                .from(holder.itemView.getContext(), coverArtId, CustomGlideRequest.ResourceType.Artist)
                 .build()
+                .placeholder(placeholder)
+                .error(placeholder)
+                .fallback(placeholder)
                 .into(holder.item.itemCoverImageView);
 
         holder.item.itemCoverImageView.setVisibility(View.VISIBLE);
@@ -414,6 +434,32 @@ public class DownloadHorizontalAdapter extends RecyclerView.Adapter<DownloadHori
         holder.item.itemCoverImageView.setVisibility(View.GONE);
         holder.item.downloadedItemMoreButton.setVisibility(View.VISIBLE);
         holder.item.divider.setVisibility(View.GONE);
+    }
+
+    private String resolveCoverArtId(Child item) {
+        if (item == null) return null;
+        String coverArtId = item.getCoverArtId();
+        if (!TextUtils.isEmpty(coverArtId)) return coverArtId;
+        if (songs == null || songs.isEmpty()) return null;
+        String albumId = item.getAlbumId();
+        if (!TextUtils.isEmpty(albumId)) {
+            for (Child song : songs) {
+                if (song == null) continue;
+                if (albumId.equals(song.getAlbumId()) && !TextUtils.isEmpty(song.getCoverArtId())) {
+                    return song.getCoverArtId();
+                }
+            }
+        }
+        String artistId = item.getArtistId();
+        if (!TextUtils.isEmpty(artistId)) {
+            for (Child song : songs) {
+                if (song == null) continue;
+                if (artistId.equals(song.getArtistId()) && !TextUtils.isEmpty(song.getCoverArtId())) {
+                    return song.getCoverArtId();
+                }
+            }
+        }
+        return null;
     }
 
     public class ViewHolder extends RecyclerView.ViewHolder {

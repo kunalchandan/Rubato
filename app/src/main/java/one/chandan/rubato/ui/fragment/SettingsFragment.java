@@ -43,15 +43,19 @@ import one.chandan.rubato.ui.dialog.StreamingCacheStorageDialog;
 import one.chandan.rubato.ui.dialog.ThemeSelectorDialog;
 import one.chandan.rubato.ui.dialog.VisualizerSettingsDialog;
 import one.chandan.rubato.util.DownloadUtil;
+import one.chandan.rubato.util.AppExecutors;
 import one.chandan.rubato.util.LocalMusicPermissions;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.Preferences;
+import one.chandan.rubato.util.MetadataSyncManager;
+import one.chandan.rubato.util.TelemetryLogger;
 import one.chandan.rubato.util.UIUtil;
 import one.chandan.rubato.repository.LocalMusicRepository;
 import one.chandan.rubato.viewmodel.SettingViewModel;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.color.MaterialColors;
+import com.google.android.material.snackbar.Snackbar;
 
 import java.util.Locale;
 import java.util.IdentityHashMap;
@@ -208,10 +212,13 @@ public class SettingsFragment extends PreferenceFragmentCompat {
         actionVisualizerSettings();
         actionScan();
         actionSyncStarredTracks();
+        actionFullMetadataSync();
         actionChangeStreamingCacheStorage();
         actionChangeDownloadStorage();
         actionDeleteDownloadStorage();
         actionKeepScreenOn();
+        actionTelemetryExport();
+        actionTelemetryClear();
         setupLocalMusicPreference();
         snapshotPreferenceVisibility();
         applyPreferenceFilter(lastQuery);
@@ -450,7 +457,7 @@ public class SettingsFragment extends PreferenceFragmentCompat {
 
     private void actionScan() {
         findPreference("scan_library").setOnPreferenceClickListener(preference -> {
-            if (NetworkUtil.isOffline()) {
+            if (OfflinePolicy.isOffline()) {
                 Toast.makeText(requireContext(), R.string.queue_add_next_unavailable_offline, Toast.LENGTH_SHORT).show();
                 return true;
             }
@@ -479,6 +486,22 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                     dialog.show(activity.getSupportFragmentManager(), null);
                 }
             }
+            return true;
+        });
+    }
+
+    private void actionFullMetadataSync() {
+        Preference fullSync = findPreference("metadata_sync_full");
+        if (fullSync == null) return;
+        fullSync.setOnPreferenceClickListener(preference -> {
+            if (OfflinePolicy.isOffline()) {
+                Snackbar.make(requireView(), R.string.metadata_sync_status_offline, Snackbar.LENGTH_SHORT).show();
+                return true;
+            }
+            AppExecutors.io().execute(() ->
+                    MetadataSyncManager.runSyncNow(requireContext().getApplicationContext(), true)
+            );
+            Snackbar.make(requireView(), R.string.metadata_sync_dialog_active_title, Snackbar.LENGTH_SHORT).show();
             return true;
         });
     }
@@ -551,6 +574,49 @@ public class SettingsFragment extends PreferenceFragmentCompat {
                     activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                 }
             }
+            return true;
+        });
+    }
+
+    private void actionTelemetryExport() {
+        Preference exportPreference = findPreference("local_telemetry_export");
+        if (exportPreference == null) return;
+
+        exportPreference.setOnPreferenceClickListener(preference -> {
+            if (!Preferences.isLocalTelemetryEnabled()) {
+                Toast.makeText(requireContext(), R.string.settings_local_telemetry_export_disabled, Toast.LENGTH_SHORT).show();
+                return true;
+            }
+            TelemetryLogger.exportLatest(requireContext(), 2000, file -> {
+                if (getActivity() == null) return;
+                getActivity().runOnUiThread(() -> {
+                    if (file != null) {
+                        String message = getString(R.string.settings_local_telemetry_export_success, file.getAbsolutePath());
+                        Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(requireContext(), R.string.settings_local_telemetry_export_failed, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            });
+            return true;
+        });
+    }
+
+    private void actionTelemetryClear() {
+        Preference clearPreference = findPreference("local_telemetry_clear");
+        if (clearPreference == null) return;
+
+        clearPreference.setOnPreferenceClickListener(preference -> {
+            AppExecutors.io().execute(() -> {
+                try {
+                    one.chandan.rubato.database.AppDatabase.getInstance().telemetryEventDao().clearAll();
+                } catch (Exception ignored) {
+                }
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() ->
+                            Toast.makeText(requireContext(), R.string.settings_local_telemetry_clear_success, Toast.LENGTH_SHORT).show());
+                }
+            });
             return true;
         });
     }

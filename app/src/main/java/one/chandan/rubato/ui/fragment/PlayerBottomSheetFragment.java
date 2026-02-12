@@ -11,7 +11,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
 import androidx.fragment.app.Fragment;
-import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.Player;
@@ -47,8 +46,8 @@ public class PlayerBottomSheetFragment extends Fragment {
     private PlayerBottomSheetViewModel playerBottomSheetViewModel;
     private ListenableFuture<MediaBrowser> mediaBrowserListenableFuture;
 
-    private Handler progressBarHandler;
-    private Runnable progressBarRunnable;
+    private final ProgressTicker progressTicker = new ProgressTicker();
+    private final BookmarkController bookmarkController = new BookmarkController();
 
     @Nullable
     @Override
@@ -76,12 +75,16 @@ public class PlayerBottomSheetFragment extends Fragment {
 
     @Override
     public void onStop() {
+        progressTicker.clear();
+        bookmarkController.clear();
         releaseMediaBrowser();
         super.onStop();
     }
 
     @Override
     public void onDestroyView() {
+        progressTicker.clear();
+        bookmarkController.clear();
         super.onDestroyView();
         bind = null;
     }
@@ -256,44 +259,74 @@ public class PlayerBottomSheetFragment extends Fragment {
     }
 
     private void defineProgressBarHandler(MediaBrowser mediaBrowser) {
-        progressBarHandler = new Handler();
-        progressBarRunnable = () -> {
-            setProgress(mediaBrowser);
-            progressBarHandler.postDelayed(progressBarRunnable, 1000);
-        };
+        progressTicker.bind(() -> setProgress(mediaBrowser));
     }
 
     private void runProgressBarHandler(boolean isPlaying) {
         if (isPlaying) {
-            progressBarHandler.postDelayed(progressBarRunnable, 1000);
+            progressTicker.start();
         } else {
-            progressBarHandler.removeCallbacks(progressBarRunnable);
+            progressTicker.stop();
         }
     }
 
-    private void setHeaderBookmarksButton() {
-        if (Preferences.isSyncronizationEnabled()) {
-            playerBottomSheetViewModel.getPlayQueue().observeForever(new Observer<PlayQueue>() {
-                @Override
-                public void onChanged(PlayQueue playQueue) {
-                    playerBottomSheetViewModel.getPlayQueue().removeObserver(this);
+    private static class ProgressTicker {
+        private final Handler handler = new Handler();
+        private Runnable tickRunnable;
 
-                    if (bind == null) return;
+        void bind(Runnable tick) {
+            this.tickRunnable = () -> {
+                tick.run();
+                handler.postDelayed(tickRunnable, 1000);
+            };
+        }
 
-                    if (playQueue != null && !playQueue.getEntries().isEmpty()) {
-                        int index = IntStream.range(0, playQueue.getEntries().size()).filter(ix -> playQueue.getEntries().get(ix).getId().equals(playQueue.getCurrent())).findFirst().orElse(-1);
+        void start() {
+            if (tickRunnable != null) {
+                handler.postDelayed(tickRunnable, 1000);
+            }
+        }
 
-                        if (index != -1) {
-                            bind.playerHeaderLayout.playerHeaderBookmarkMediaButton.setVisibility(View.VISIBLE);
-                            bind.playerHeaderLayout.playerHeaderBookmarkMediaButton.setOnClickListener(v -> {
-                                MediaManager.startQueue(mediaBrowserListenableFuture, playQueue.getEntries(), index);
-                                bind.playerHeaderLayout.playerHeaderBookmarkMediaButton.setVisibility(View.GONE);
-                            });
-                        }
-                    } else {
-                        bind.playerHeaderLayout.playerHeaderBookmarkMediaButton.setVisibility(View.GONE);
-                        bind.playerHeaderLayout.playerHeaderBookmarkMediaButton.setOnClickListener(null);
+        void stop() {
+            if (tickRunnable != null) {
+                handler.removeCallbacks(tickRunnable);
+            }
+        }
+
+        void clear() {
+            handler.removeCallbacksAndMessages(null);
+            tickRunnable = null;
+        }
+    }
+
+    private class BookmarkController {
+        private final Handler hideHandler = new Handler();
+        private Runnable hideRunnable;
+
+        void bind() {
+            if (!Preferences.isSyncronizationEnabled()) {
+                return;
+            }
+
+            playerBottomSheetViewModel.getPlayQueue().observe(getViewLifecycleOwner(), playQueue -> {
+                if (bind == null) return;
+
+                if (playQueue != null && !playQueue.getEntries().isEmpty()) {
+                    int index = IntStream.range(0, playQueue.getEntries().size())
+                            .filter(ix -> playQueue.getEntries().get(ix).getId().equals(playQueue.getCurrent()))
+                            .findFirst()
+                            .orElse(-1);
+
+                    if (index != -1) {
+                        bind.playerHeaderLayout.playerHeaderBookmarkMediaButton.setVisibility(View.VISIBLE);
+                        bind.playerHeaderLayout.playerHeaderBookmarkMediaButton.setOnClickListener(v -> {
+                            MediaManager.startQueue(mediaBrowserListenableFuture, playQueue.getEntries(), index);
+                            bind.playerHeaderLayout.playerHeaderBookmarkMediaButton.setVisibility(View.GONE);
+                        });
                     }
+                } else {
+                    bind.playerHeaderLayout.playerHeaderBookmarkMediaButton.setVisibility(View.GONE);
+                    bind.playerHeaderLayout.playerHeaderBookmarkMediaButton.setOnClickListener(null);
                 }
             });
 
@@ -302,10 +335,28 @@ public class PlayerBottomSheetFragment extends Fragment {
                 return true;
             });
 
-            new Handler().postDelayed(() -> {
-                if (bind != null)
-                    bind.playerHeaderLayout.playerHeaderBookmarkMediaButton.setVisibility(View.GONE);
-            }, Preferences.getSyncCountdownTimer() * 1000L);
+            scheduleHide();
         }
+
+        void clear() {
+            hideHandler.removeCallbacksAndMessages(null);
+            hideRunnable = null;
+        }
+
+        private void scheduleHide() {
+            if (hideRunnable != null) {
+                hideHandler.removeCallbacks(hideRunnable);
+            }
+            hideRunnable = () -> {
+                if (bind != null) {
+                    bind.playerHeaderLayout.playerHeaderBookmarkMediaButton.setVisibility(View.GONE);
+                }
+            };
+            hideHandler.postDelayed(hideRunnable, Preferences.getSyncCountdownTimer() * 1000L);
+        }
+    }
+
+    private void setHeaderBookmarksButton() {
+        bookmarkController.bind();
     }
 }

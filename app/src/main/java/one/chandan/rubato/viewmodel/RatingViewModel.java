@@ -6,17 +6,13 @@ import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 
-import one.chandan.rubato.repository.AlbumRepository;
-import one.chandan.rubato.repository.ArtistRepository;
-import one.chandan.rubato.repository.SongRepository;
+import one.chandan.rubato.repository.LibraryRepository;
 import one.chandan.rubato.subsonic.models.AlbumID3;
 import one.chandan.rubato.subsonic.models.ArtistID3;
 import one.chandan.rubato.subsonic.models.Child;
 
 public class RatingViewModel extends AndroidViewModel {
-    private final SongRepository songRepository;
-    private final AlbumRepository albumRepository;
-    private final ArtistRepository artistRepository;
+    private final LibraryRepository libraryRepository;
 
     private Child song;
     private AlbumID3 album;
@@ -25,9 +21,7 @@ public class RatingViewModel extends AndroidViewModel {
     public RatingViewModel(@NonNull Application application) {
         super(application);
 
-        songRepository = new SongRepository();
-        albumRepository = new AlbumRepository();
-        artistRepository = new ArtistRepository();
+        libraryRepository = new LibraryRepository();
     }
 
     public Child getSong() {
@@ -35,7 +29,7 @@ public class RatingViewModel extends AndroidViewModel {
     }
 
     public LiveData<Child> getLiveSong() {
-        return songRepository.getSong(song.getId());
+        return libraryRepository.getSong(song.getId());
     }
 
     public void setSong(Child song) {
@@ -49,7 +43,7 @@ public class RatingViewModel extends AndroidViewModel {
     }
 
     public LiveData<AlbumID3> getLiveAlbum() {
-        return albumRepository.getAlbum(album.getId());
+        return libraryRepository.getAlbum(album.getId());
     }
 
     public void setAlbum(AlbumID3 album) {
@@ -63,7 +57,7 @@ public class RatingViewModel extends AndroidViewModel {
     }
 
     public LiveData<ArtistID3> getLiveArtist() {
-        return artistRepository.getArtist(artist.getId());
+        return libraryRepository.getArtistInfo(artist.getId());
     }
 
     public void setArtist(ArtistID3 artist) {
@@ -74,11 +68,11 @@ public class RatingViewModel extends AndroidViewModel {
 
     public void rate(int star) {
         if (song != null) {
-            songRepository.setRating(song.getId(), star);
+            libraryRepository.setSongRating(song.getId(), star);
         } else if (album != null) {
-            albumRepository.setRating(album.getId(), star);
+            libraryRepository.setAlbumRating(album.getId(), star);
         } else if (artist != null) {
-            artistRepository.setRating(artist.getId(), star);
+            libraryRepository.setArtistRating(artist.getId(), star);
         }
     }
 }

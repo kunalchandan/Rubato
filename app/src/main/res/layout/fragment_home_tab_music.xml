@@ -357,6 +357,8 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:drawableStart="@drawable/ic_favorite"
+                    android:drawablePadding="@dimen/space_8"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="@string/home_title_starred_tracks" />
@@ -406,6 +408,8 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:drawableStart="@drawable/ic_favorite"
+                    android:drawablePadding="@dimen/space_8"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="@string/home_title_starred_albums" />
@@ -455,6 +459,8 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:drawableStart="@drawable/ic_favorite"
+                    android:drawablePadding="@dimen/space_8"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:text="@string/home_title_starred_artists" />

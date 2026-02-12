@@ -20,8 +20,9 @@ import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.navigation.NavController;
+import androidx.navigation.NavDestination;
 import androidx.navigation.fragment.NavHostFragment;
-import androidx.navigation.ui.NavigationUI;
+import androidx.navigation.NavOptions;
 
 import one.chandan.rubato.App;
 import one.chandan.rubato.BuildConfig;
@@ -32,17 +33,22 @@ import one.chandan.rubato.github.utils.UpdateUtil;
 import one.chandan.rubato.model.Download;
 import one.chandan.rubato.repository.AlbumRepository;
 import one.chandan.rubato.repository.DownloadRepository;
+import one.chandan.rubato.repository.JellyfinServerRepository;
+import one.chandan.rubato.repository.LocalSourceRepository;
 import one.chandan.rubato.service.MediaManager;
 import one.chandan.rubato.ui.activity.base.BaseActivity;
 import one.chandan.rubato.ui.dialog.ConnectionAlertDialog;
 import one.chandan.rubato.ui.dialog.FirstLaunchDialog;
-import one.chandan.rubato.ui.dialog.GithubTempoUpdateDialog;
+import one.chandan.rubato.ui.dialog.GithubRubatoUpdateDialog;
 import one.chandan.rubato.ui.dialog.ServerUnreachableDialog;
 import one.chandan.rubato.ui.fragment.PlayerBottomSheetFragment;
 import one.chandan.rubato.util.Constants;
-import one.chandan.rubato.util.MetadataSyncManager;
+import one.chandan.rubato.util.AppExecutors;
+import one.chandan.rubato.sync.SyncOrchestrator;
 import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.PerformanceMarkers;
 import one.chandan.rubato.util.Preferences;
+import one.chandan.rubato.util.ServerConfigUtil;
 import one.chandan.rubato.util.ServerStatus;
 import one.chandan.rubato.util.TelemetryLogger;
 import one.chandan.rubato.viewmodel.MainViewModel;
@@ -67,6 +73,8 @@ public class MainActivity extends BaseActivity {
     public NavController navController;
     private BottomSheetBehavior bottomSheetBehavior;
     private int lastDestinationId = -1;
+    private boolean startupLogged = false;
+    private int lastBottomNavItemId = -1;
 
     ConnectivityStatusBroadcastReceiver connectivityStatusBroadcastReceiver;
 
@@ -101,7 +109,7 @@ public class MainActivity extends BaseActivity {
         updateOfflineBanner();
         checkConnectionType();
         getOpenSubsonicExtensions();
-        checkTempoUpdate();
+        checkRubatoUpdate();
         handleDownloadNotificationIntent(getIntent());
     }
 
@@ -109,7 +117,7 @@ public class MainActivity extends BaseActivity {
     protected void onStart() {
         super.onStart();
         initService();
-        MetadataSyncManager.startIfNeeded(this);
+        SyncOrchestrator.startOnLaunch(this);
     }
 
     @Override
@@ -118,6 +126,17 @@ public class MainActivity extends BaseActivity {
         pingServer();
         updateOfflineBanner();
         TelemetryLogger.logEvent(getCurrentScreenLabel(), "lifecycle", "onResume", 0L);
+        if (!startupLogged) {
+            PerformanceMarkers.endAndLog(
+                    "app_start",
+                    "App",
+                    "startup",
+                    "first_resume",
+                    TelemetryLogger.SOURCE_STARTUP,
+                    null
+            );
+            startupLogged = true;
+        }
     }
 
     @Override
@@ -151,13 +170,34 @@ public class MainActivity extends BaseActivity {
         initBottomSheet();
         initNavigation();
 
-        if (Preferences.getPassword() != null || (Preferences.getToken() != null && Preferences.getSalt() != null)) {
+        boolean hasCredentials = Preferences.getPassword() != null
+                || (Preferences.getToken() != null && Preferences.getSalt() != null);
+        boolean hasJellyfinServers = !new JellyfinServerRepository().getServersSnapshot().isEmpty();
+
+        if (hasCredentials || hasJellyfinServers) {
             goFromLogin();
-        } else {
-            goToLogin();
+            maybeShowFirstLaunchDialog();
+            return;
         }
 
-        maybeShowFirstLaunchDialog();
+        AppExecutors.io().execute(() -> {
+            boolean hasLocalSources = false;
+            try {
+                LocalSourceRepository localSourceRepository = new LocalSourceRepository();
+                java.util.List<one.chandan.rubato.model.LocalSource> sources = localSourceRepository.getSourcesSync();
+                hasLocalSources = sources != null && !sources.isEmpty();
+            } catch (Exception ignored) {
+            }
+            boolean finalHasLocalSources = hasLocalSources;
+            runOnUiThread(() -> {
+                if (finalHasLocalSources) {
+                    goFromLogin();
+                } else {
+                    goToLogin();
+                }
+                maybeShowFirstLaunchDialog();
+            });
+        });
     }
 
     // BOTTOM SHEET/NAVIGATION
@@ -277,8 +317,55 @@ public class MainActivity extends BaseActivity {
             }
         });
 
-        NavigationUI.setupWithNavController(bottomNavigationView, navController);
+        setupBottomNavigation();
         navController.addOnDestinationChangedListener(destinationListener);
+    }
+
+    private void setupBottomNavigation() {
+        if (bottomNavigationView == null || navController == null) {
+            return;
+        }
+
+        bottomNavigationView.setOnItemSelectedListener(item -> {
+            int itemId = item.getItemId();
+            NavDestination currentDestination = navController.getCurrentDestination();
+            if (currentDestination != null && currentDestination.getId() == itemId) {
+                return true;
+            }
+            NavOptions options = new NavOptions.Builder()
+                    .setLaunchSingleTop(true)
+                    .setRestoreState(true)
+                    .setPopUpTo(navController.getGraph().getStartDestinationId(), false, true)
+                    .build();
+            try {
+                navController.navigate(itemId, null, options);
+                return true;
+            } catch (IllegalArgumentException ex) {
+                return false;
+            }
+        });
+
+        bottomNavigationView.setOnItemReselectedListener(item -> {
+            // No-op: keep scroll and state as-is.
+        });
+
+        navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
+            if (destination == null) return;
+            int destId = destination.getId();
+            if (isTopLevelDestination(destId)) {
+                lastBottomNavItemId = destId;
+                bottomNavigationView.getMenu().findItem(destId).setChecked(true);
+            } else if (lastBottomNavItemId != -1) {
+                bottomNavigationView.getMenu().findItem(lastBottomNavItemId).setChecked(true);
+            }
+        });
+    }
+
+    private boolean isTopLevelDestination(int destinationId) {
+        return destinationId == R.id.homeFragment
+                || destinationId == R.id.libraryFragment
+                || destinationId == R.id.searchFragment
+                || destinationId == R.id.downloadFragment;
     }
 
     @Override
@@ -418,6 +505,8 @@ public class MainActivity extends BaseActivity {
             navController.navigate(R.id.action_landingFragment_to_homeFragment);
         } else if (Objects.requireNonNull(navController.getCurrentDestination()).getId() == R.id.loginFragment) {
             navController.navigate(R.id.action_loginFragment_to_homeFragment);
+        } else if (Objects.requireNonNull(navController.getCurrentDestination()).getId() == R.id.musicSourcesFragment) {
+            navController.navigate(R.id.action_musicSourcesFragment_to_homeFragment);
         }
     }
 
@@ -527,6 +616,10 @@ public class MainActivity extends BaseActivity {
 
     public void updateOfflineBanner() {
         if (bind == null) return;
+        if (!ServerConfigUtil.hasAnyRemoteServer()) {
+            bind.offlineModeTextView.setVisibility(View.GONE);
+            return;
+        }
         boolean hasInternet = NetworkUtil.hasInternet();
         boolean serverReachable = ServerStatus.isReachable();
 
@@ -537,13 +630,12 @@ public class MainActivity extends BaseActivity {
         }
 
         if (!serverReachable) {
-            bind.offlineModeTextView.setText(R.string.activity_info_server_unreachable);
-            bind.offlineModeTextView.setVisibility(View.VISIBLE);
+            bind.offlineModeTextView.setVisibility(View.GONE);
             return;
         }
 
         bind.offlineModeTextView.setVisibility(View.GONE);
-        MetadataSyncManager.startIfNeeded(this);
+        SyncOrchestrator.startOnConnectivity(this);
     }
 
     private void getOpenSubsonicExtensions() {
@@ -556,13 +648,13 @@ public class MainActivity extends BaseActivity {
         }
     }
 
-    private void checkTempoUpdate() {
+    private void checkRubatoUpdate() {
         if (BuildConfig.APPLICATION_ID != null
-                && BuildConfig.APPLICATION_ID.contains("tempo")
-                && Preferences.showTempoUpdateDialog()) {
-            mainViewModel.checkTempoUpdate().observe(this, latestRelease -> {
+                && BuildConfig.APPLICATION_ID.contains("rubato")
+                && Preferences.showRubatoUpdateDialog()) {
+            mainViewModel.checkRubatoUpdate().observe(this, latestRelease -> {
                 if (latestRelease != null && UpdateUtil.showUpdateDialog(latestRelease)) {
-                    GithubTempoUpdateDialog dialog = new GithubTempoUpdateDialog(latestRelease);
+                    GithubRubatoUpdateDialog dialog = new GithubRubatoUpdateDialog(latestRelease);
                     dialog.show(getSupportFragmentManager(), null);
                 }
             });

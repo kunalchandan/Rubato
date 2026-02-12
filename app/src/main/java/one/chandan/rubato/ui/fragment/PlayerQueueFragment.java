@@ -12,6 +12,7 @@ import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.util.UnstableApi;
+import androidx.media3.common.Player;
 import androidx.media3.session.MediaBrowser;
 import androidx.media3.session.SessionToken;
 import androidx.recyclerview.widget.ItemTouchHelper;
@@ -98,6 +99,13 @@ public class PlayerQueueFragment extends Fragment implements ClickCallback {
             try {
                 MediaBrowser mediaBrowser = mediaBrowserListenableFuture.get();
                 initShuffleButton(mediaBrowser);
+                updateCurrentIndex();
+                mediaBrowser.addListener(new Player.Listener() {
+                    @Override
+                    public void onMediaItemTransition(androidx.media3.common.MediaItem mediaItem, int reason) {
+                        playerSongQueueAdapter.setCurrentIndex(mediaBrowser.getCurrentMediaItemIndex());
+                    }
+                });
             } catch (Exception exception) {
                 exception.printStackTrace();
             }
@@ -117,6 +125,7 @@ public class PlayerQueueFragment extends Fragment implements ClickCallback {
         playerBottomSheetViewModel.getQueueSong().observe(getViewLifecycleOwner(), queue -> {
             if (queue != null) {
                 playerSongQueueAdapter.setItems(queue.stream().map(item -> (Child) item).collect(Collectors.toList()));
+                updateCurrentIndex();
             }
         });
 
@@ -253,7 +262,15 @@ public class PlayerQueueFragment extends Fragment implements ClickCallback {
     }
 
     private void updateNowPlayingItem() {
-        playerSongQueueAdapter.notifyDataSetChanged();
+        updateCurrentIndex();
+    }
+
+    private void updateCurrentIndex() {
+        if (mediaBrowserListenableFuture == null) return;
+        MediaManager.getCurrentIndex(mediaBrowserListenableFuture, index -> {
+            if (bind == null) return;
+            playerSongQueueAdapter.setCurrentIndex(index);
+        });
     }
 
     @Override

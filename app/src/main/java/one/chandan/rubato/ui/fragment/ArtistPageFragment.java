@@ -26,7 +26,6 @@ import one.chandan.rubato.helper.recyclerview.CustomLinearSnapHelper;
 import one.chandan.rubato.helper.recyclerview.GridItemDecoration;
 import one.chandan.rubato.helper.recyclerview.QueueSwipeHelper;
 import one.chandan.rubato.interfaces.ClickCallback;
-import one.chandan.rubato.repository.LocalMusicRepository;
 import one.chandan.rubato.service.MediaManager;
 import one.chandan.rubato.service.MediaService;
 import one.chandan.rubato.subsonic.models.ArtistID3;
@@ -38,11 +37,9 @@ import one.chandan.rubato.ui.adapter.ArtistCatalogueAdapter;
 import one.chandan.rubato.ui.adapter.ArtistSimilarAdapter;
 import one.chandan.rubato.ui.adapter.SongHorizontalAdapter;
 import one.chandan.rubato.util.Constants;
-import one.chandan.rubato.util.DownloadUtil;
 import one.chandan.rubato.util.FavoriteUtil;
 import one.chandan.rubato.util.MusicUtil;
-import one.chandan.rubato.util.NetworkUtil;
-import one.chandan.rubato.util.OfflineMediaUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.Preferences;
 import one.chandan.rubato.viewmodel.ArtistPageViewModel;
 import com.google.android.material.snackbar.Snackbar;
@@ -154,10 +151,14 @@ public class ArtistPageFragment extends Fragment implements ClickCallback {
     }
 
     private void initPlayButtons() {
-        boolean isOffline = NetworkUtil.isOffline();
+        boolean isOffline = OfflinePolicy.isOffline();
         bind.artistPageShuffleButton.setOnClickListener(v -> {
             artistPageViewModel.getArtistShuffleList().observe(getViewLifecycleOwner(), songs -> {
-                List<Child> playable = OfflineMediaUtil.filterPlayable(requireContext(), songs);
+                if (songs == null) {
+                    Toast.makeText(requireContext(), getString(R.string.artist_error_retrieving_tracks), Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                List<Child> playable = OfflinePolicy.filterPlayable(requireContext(), songs);
                 if (!playable.isEmpty()) {
                     MediaManager.startQueue(mediaBrowserListenableFuture, playable, 0);
                     activity.setBottomSheetInPeek(true);
@@ -173,16 +174,29 @@ public class ArtistPageFragment extends Fragment implements ClickCallback {
 
         bind.artistPageRadioButton.setOnClickListener(v -> {
             artistPageViewModel.getArtistInstantMix().observe(getViewLifecycleOwner(), songs -> {
-                if (!songs.isEmpty()) {
+                if (songs != null && !songs.isEmpty()) {
                     MediaManager.startQueue(mediaBrowserListenableFuture, songs, 0);
                     activity.setBottomSheetInPeek(true);
-                } else {
-                    Toast.makeText(requireContext(), getString(R.string.artist_error_retrieving_radio), Toast.LENGTH_SHORT).show();
+                    return;
                 }
+                artistPageViewModel.getArtistShuffleList().observe(getViewLifecycleOwner(), fallback -> {
+                    if (fallback == null) {
+                        Toast.makeText(requireContext(), getString(R.string.artist_error_retrieving_radio), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    List<Child> playable = OfflinePolicy.filterPlayable(requireContext(), fallback);
+                    if (!playable.isEmpty()) {
+                        MediaManager.startQueue(mediaBrowserListenableFuture, playable, 0);
+                        activity.setBottomSheetInPeek(true);
+                    } else {
+                        Toast.makeText(requireContext(), getString(R.string.artist_error_retrieving_radio), Toast.LENGTH_SHORT).show();
+                    }
+                });
             });
         });
-        bind.artistPageRadioButton.setEnabled(!isOffline);
-        bind.artistPageRadioButton.setAlpha(isOffline ? 0.4f : 1f);
+        boolean canPlayRadio = OfflinePolicy.canPlayRadio();
+        bind.artistPageRadioButton.setEnabled(canPlayRadio);
+        bind.artistPageRadioButton.setAlpha(canPlayRadio ? 1f : 0.4f);
     }
 
     private void initTopSongsView() {
@@ -197,7 +211,7 @@ public class ArtistPageFragment extends Fragment implements ClickCallback {
                 if (bind != null)
                     bind.artistPageTopSongsSector.setVisibility(!songs.isEmpty() ? View.VISIBLE : View.GONE);
                 if (bind != null)
-                    bind.artistPageShuffleButton.setEnabled(OfflineMediaUtil.hasPlayable(requireContext(), songs));
+                    bind.artistPageShuffleButton.setEnabled(OfflinePolicy.hasPlayable(requireContext(), songs));
                 if (bind != null)
                     bind.artistPageShuffleButton.setAlpha(bind.artistPageShuffleButton.isEnabled() ? 1f : 0.4f);
                 songHorizontalAdapter.setItems(songs);
@@ -210,9 +224,7 @@ public class ArtistPageFragment extends Fragment implements ClickCallback {
                 if (action == QueueSwipeHelper.SwipeAction.TOGGLE_FAVORITE) {
                     return true;
                 }
-                boolean isLocal = LocalMusicRepository.isLocalSong(song);
-                boolean isDownloaded = isLocal || DownloadUtil.getDownloadTracker(requireContext()).isDownloaded(song.getId());
-                return !NetworkUtil.isOffline() || isDownloaded;
+                return OfflinePolicy.canQueue(requireContext(), song);
             }
 
             @Override

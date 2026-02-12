@@ -8,14 +8,13 @@ import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.media3.session.MediaBrowser;
+import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
 import one.chandan.rubato.R;
 import one.chandan.rubato.databinding.ItemPlayerQueueSongBinding;
 import one.chandan.rubato.glide.CustomGlideRequest;
 import one.chandan.rubato.interfaces.ClickCallback;
-import one.chandan.rubato.interfaces.MediaIndexCallback;
-import one.chandan.rubato.service.MediaManager;
 import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.MusicUtil;
@@ -25,16 +24,19 @@ import com.google.common.util.concurrent.ListenableFuture;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public class PlayerSongQueueAdapter extends RecyclerView.Adapter<PlayerSongQueueAdapter.ViewHolder> {
     private final ClickCallback click;
 
     private ListenableFuture<MediaBrowser> mediaBrowserListenableFuture;
     private List<Child> songs;
+    private int currentIndex = -1;
 
     public PlayerSongQueueAdapter(ClickCallback click) {
         this.click = click;
         this.songs = Collections.emptyList();
+        setHasStableIds(true);
     }
 
     @NonNull
@@ -63,20 +65,11 @@ public class PlayerSongQueueAdapter extends RecyclerView.Adapter<PlayerSongQueue
                 .build()
                 .into(holder.item.queueSongCoverImageView);
 
-        MediaManager.getCurrentIndex(mediaBrowserListenableFuture, new MediaIndexCallback() {
-            @Override
-            public void onRecovery(int index) {
-                if (position < index) {
-                    holder.item.queueSongTitleTextView.setAlpha(0.2f);
-                    holder.item.queueSongSubtitleTextView.setAlpha(0.2f);
-                    holder.item.ratingIndicatorImageView.setAlpha(0.2f);
-                } else {
-                    holder.item.queueSongTitleTextView.setAlpha(1.0f);
-                    holder.item.queueSongSubtitleTextView.setAlpha(1.0f);
-                    holder.item.ratingIndicatorImageView.setAlpha(1.0f);
-                }
-            }
-        });
+        boolean dimmed = currentIndex >= 0 && position < currentIndex;
+        float alpha = dimmed ? 0.2f : 1.0f;
+        holder.item.queueSongTitleTextView.setAlpha(alpha);
+        holder.item.queueSongSubtitleTextView.setAlpha(alpha);
+        holder.item.ratingIndicatorImageView.setAlpha(alpha);
 
         if (Preferences.showItemRating()) {
             if (song.getStarred() == null && song.getUserRating() == null) {
@@ -103,8 +96,13 @@ public class PlayerSongQueueAdapter extends RecyclerView.Adapter<PlayerSongQueue
     }
 
     public void setItems(List<Child> songs) {
-        this.songs = songs;
-        notifyDataSetChanged();
+        List<Child> next = songs != null ? songs : Collections.emptyList();
+        DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new QueueDiffCallback(this.songs, next));
+        this.songs = next;
+        if (currentIndex >= next.size()) {
+            currentIndex = -1;
+        }
+        diffResult.dispatchUpdatesTo(this);
     }
 
     @Override
@@ -117,6 +115,13 @@ public class PlayerSongQueueAdapter extends RecyclerView.Adapter<PlayerSongQueue
 
     @Override
     public long getItemId(int position) {
+        if (position < 0 || position >= songs.size()) {
+            return RecyclerView.NO_ID;
+        }
+        Child song = songs.get(position);
+        if (song != null && song.getId() != null) {
+            return song.getId().hashCode();
+        }
         return position;
     }
 
@@ -126,6 +131,25 @@ public class PlayerSongQueueAdapter extends RecyclerView.Adapter<PlayerSongQueue
 
     public Child getItem(int id) {
         return songs.get(id);
+    }
+
+    public void setCurrentIndex(int index) {
+        if (index == currentIndex) return;
+        int oldIndex = currentIndex;
+        currentIndex = index;
+        if (songs == null || songs.isEmpty()) {
+            notifyDataSetChanged();
+            return;
+        }
+        if (oldIndex < 0 || currentIndex < 0) {
+            notifyDataSetChanged();
+            return;
+        }
+        int start = Math.min(oldIndex, currentIndex);
+        int end = Math.max(oldIndex, currentIndex) - 1;
+        if (start <= end) {
+            notifyItemRangeChanged(start, end - start + 1);
+        }
     }
 
     public class ViewHolder extends RecyclerView.ViewHolder {
@@ -148,6 +172,48 @@ public class PlayerSongQueueAdapter extends RecyclerView.Adapter<PlayerSongQueue
             bundle.putInt(Constants.ITEM_POSITION, getBindingAdapterPosition());
 
             click.onMediaClick(bundle);
+        }
+    }
+
+    private static final class QueueDiffCallback extends DiffUtil.Callback {
+        private final List<Child> oldList;
+        private final List<Child> newList;
+
+        private QueueDiffCallback(List<Child> oldList, List<Child> newList) {
+            this.oldList = oldList != null ? oldList : Collections.emptyList();
+            this.newList = newList != null ? newList : Collections.emptyList();
+        }
+
+        @Override
+        public int getOldListSize() {
+            return oldList.size();
+        }
+
+        @Override
+        public int getNewListSize() {
+            return newList.size();
+        }
+
+        @Override
+        public boolean areItemsTheSame(int oldItemPosition, int newItemPosition) {
+            Child oldItem = oldList.get(oldItemPosition);
+            Child newItem = newList.get(newItemPosition);
+            if (oldItem == null || newItem == null) return false;
+            return Objects.equals(oldItem.getId(), newItem.getId());
+        }
+
+        @Override
+        public boolean areContentsTheSame(int oldItemPosition, int newItemPosition) {
+            Child oldItem = oldList.get(oldItemPosition);
+            Child newItem = newList.get(newItemPosition);
+            if (oldItem == null || newItem == null) return false;
+            return Objects.equals(oldItem.getTitle(), newItem.getTitle())
+                    && Objects.equals(oldItem.getArtist(), newItem.getArtist())
+                    && Objects.equals(oldItem.getAlbum(), newItem.getAlbum())
+                    && Objects.equals(oldItem.getCoverArtId(), newItem.getCoverArtId())
+                    && Objects.equals(oldItem.getDuration(), newItem.getDuration())
+                    && Objects.equals(oldItem.getUserRating(), newItem.getUserRating())
+                    && Objects.equals(oldItem.getStarred(), newItem.getStarred());
         }
     }
 }

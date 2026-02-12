@@ -8,6 +8,7 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
+import one.chandan.rubato.R;
 import one.chandan.rubato.databinding.ItemLibraryAlbumBinding;
 import one.chandan.rubato.glide.CustomGlideRequest;
 import one.chandan.rubato.interfaces.ClickCallback;
@@ -48,6 +49,11 @@ public class AlbumAdapter extends RecyclerView.Adapter<AlbumAdapter.ViewHolder> 
                 .from(holder.itemView.getContext(), album.getCoverArtId(), CustomGlideRequest.ResourceType.Album)
                 .build()
                 .into(holder.item.albumCoverImageView);
+    }
+
+    @Override
+    public int getItemViewType(int position) {
+        return R.layout.item_library_album;
     }
 
     @Override

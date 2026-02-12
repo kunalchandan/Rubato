@@ -36,8 +36,7 @@ import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.DownloadUtil;
 import one.chandan.rubato.util.MappingUtil;
 import one.chandan.rubato.util.MusicUtil;
-import one.chandan.rubato.util.NetworkUtil;
-import one.chandan.rubato.util.OfflineMediaUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.Preferences;
 import one.chandan.rubato.viewmodel.AlbumBottomSheetViewModel;
 import one.chandan.rubato.viewmodel.HomeViewModel;
@@ -88,7 +87,7 @@ public class AlbumBottomSheetDialog extends BottomSheetDialogFragment implements
     }
 
     private void init(View view) {
-        boolean isOffline = NetworkUtil.isOffline();
+        boolean isOffline = OfflinePolicy.isOffline();
 
         ImageView coverAlbum = view.findViewById(R.id.album_cover_image_view);
         CustomGlideRequest.Builder
@@ -131,7 +130,7 @@ public class AlbumBottomSheetDialog extends BottomSheetDialogFragment implements
                 }
             });
         });
-        setActionEnabled(playRadio, !isOffline);
+        setActionEnabled(playRadio, OfflinePolicy.canPlayRadio());
 
         TextView playRandom = view.findViewById(R.id.play_random_text_view);
 
@@ -143,12 +142,12 @@ public class AlbumBottomSheetDialog extends BottomSheetDialogFragment implements
 
         TextView removeAll = view.findViewById(R.id.remove_all_text_view);
         albumBottomSheetViewModel.getAlbumTracks().observe(getViewLifecycleOwner(), songs -> {
-            boolean hasPlayable = OfflineMediaUtil.hasPlayable(requireContext(), songs);
+            boolean hasPlayable = OfflinePolicy.hasPlayable(requireContext(), songs);
             setActionEnabled(playRandom, hasPlayable);
             setActionEnabled(playNext, hasPlayable);
             setActionEnabled(addToQueue, hasPlayable);
 
-            List<Child> playable = OfflineMediaUtil.filterPlayable(requireContext(), songs);
+            List<Child> playable = OfflinePolicy.filterPlayable(requireContext(), songs);
 
             playRandom.setOnClickListener(v -> {
                 if (playable.isEmpty()) {
@@ -201,7 +200,7 @@ public class AlbumBottomSheetDialog extends BottomSheetDialogFragment implements
                 dismissBottomSheet();
             });
 
-            initDownloadUI(downloadAll, removeAll, isOffline, songs);
+            initDownloadUI(downloadAll, removeAll, songs);
         });
 
         if (LocalMusicRepository.isLocalAlbumId(album.getId())) {
@@ -238,7 +237,7 @@ public class AlbumBottomSheetDialog extends BottomSheetDialogFragment implements
 
         share.setVisibility(Preferences.isSharingEnabled() ? View.VISIBLE : View.GONE);
         if (share.getVisibility() == View.VISIBLE) {
-            setActionEnabled(share, !isOffline);
+            setActionEnabled(share, OfflinePolicy.canShare());
         }
     }
 
@@ -251,7 +250,7 @@ public class AlbumBottomSheetDialog extends BottomSheetDialogFragment implements
         dismiss();
     }
 
-    private void initDownloadUI(TextView downloadAll, TextView removeAll, boolean isOffline, List<Child> songs) {
+    private void initDownloadUI(TextView downloadAll, TextView removeAll, List<Child> songs) {
         List<MediaItem> mediaItems = MappingUtil.mapDownloads(songs);
 
         if (DownloadUtil.getDownloadTracker(requireContext()).areDownloaded(mediaItems)) {
@@ -263,7 +262,7 @@ public class AlbumBottomSheetDialog extends BottomSheetDialogFragment implements
 
         downloadAll.setVisibility(View.VISIBLE);
         removeAll.setVisibility(View.GONE);
-        setActionEnabled(downloadAll, !isOffline);
+        setActionEnabled(downloadAll, OfflinePolicy.canDownloadAll());
     }
 
     private void setActionEnabled(View view, boolean enabled) {

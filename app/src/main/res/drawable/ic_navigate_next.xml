@@ -2,9 +2,10 @@
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="960"
-    android:viewportHeight="960"
-    android:autoMirrored="true">
-    <path
-        android:fillColor="@color/titleTextColor"
-        android:pathData="M376,720L320,664L504,480L320,296L376,240L616,480L376,720Z"/>
+    android:viewportHeight="960">
+    <group android:translateX="0" android:translateY="960.0">
+        <path
+            android:fillColor="@color/titleTextColor"
+            android:pathData="M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z" />
+    </group>
 </vector>

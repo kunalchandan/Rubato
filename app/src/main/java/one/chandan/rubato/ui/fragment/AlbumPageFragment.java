@@ -28,7 +28,6 @@ import one.chandan.rubato.glide.CustomGlideRequest;
 import one.chandan.rubato.helper.recyclerview.QueueSwipeHelper;
 import one.chandan.rubato.interfaces.ClickCallback;
 import one.chandan.rubato.model.Download;
-import one.chandan.rubato.repository.LocalMusicRepository;
 import one.chandan.rubato.service.MediaManager;
 import one.chandan.rubato.service.MediaService;
 import one.chandan.rubato.ui.activity.MainActivity;
@@ -38,8 +37,7 @@ import one.chandan.rubato.util.DownloadUtil;
 import one.chandan.rubato.util.FavoriteUtil;
 import one.chandan.rubato.util.MappingUtil;
 import one.chandan.rubato.util.MusicUtil;
-import one.chandan.rubato.util.NetworkUtil;
-import one.chandan.rubato.util.OfflineMediaUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.viewmodel.AlbumPageViewModel;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -59,6 +57,7 @@ public class AlbumPageFragment extends Fragment implements ClickCallback {
     private AlbumPageViewModel albumPageViewModel;
     private SongHorizontalAdapter songHorizontalAdapter;
     private ListenableFuture<MediaBrowser> mediaBrowserListenableFuture;
+    private MenuItem favoriteMenuItem;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -70,6 +69,8 @@ public class AlbumPageFragment extends Fragment implements ClickCallback {
     public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
         super.onCreateOptionsMenu(menu, inflater);
         inflater.inflate(R.menu.album_page_menu, menu);
+        favoriteMenuItem = menu.findItem(R.id.action_favorite_album);
+        updateFavoriteMenu(albumPageViewModel != null ? albumPageViewModel.getAlbum().getValue() : null);
     }
 
     @Override
@@ -108,12 +109,13 @@ public class AlbumPageFragment extends Fragment implements ClickCallback {
     public void onDestroyView() {
         super.onDestroyView();
         bind = null;
+        favoriteMenuItem = null;
     }
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if (item.getItemId() == R.id.action_download_album) {
-            if (NetworkUtil.isOffline()) {
+            if (OfflinePolicy.isOffline()) {
                 if (bind != null) {
                     Snackbar.make(bind.getRoot(), getString(R.string.queue_add_next_unavailable_offline), Snackbar.LENGTH_SHORT).show();
                 }
@@ -122,6 +124,14 @@ public class AlbumPageFragment extends Fragment implements ClickCallback {
             albumPageViewModel.getAlbumSongLiveList().observe(getViewLifecycleOwner(), songs -> {
                 DownloadUtil.getDownloadTracker(requireContext()).download(MappingUtil.mapDownloads(songs), songs.stream().map(Download::new).collect(Collectors.toList()));
             });
+            return true;
+        }
+        if (item.getItemId() == R.id.action_favorite_album) {
+            boolean starred = albumPageViewModel.toggleFavorite();
+            updateFavoriteMenu(albumPageViewModel.getAlbum().getValue());
+            if (bind != null) {
+                Snackbar.make(bind.getRoot(), getString(starred ? R.string.favorite_added : R.string.favorite_removed), Snackbar.LENGTH_SHORT).show();
+            }
             return true;
         }
 
@@ -143,7 +153,8 @@ public class AlbumPageFragment extends Fragment implements ClickCallback {
 
         albumPageViewModel.getAlbum().observe(getViewLifecycleOwner(), album -> {
             if (bind != null && album != null) {
-                bind.animToolbar.setTitle(album.getName());
+                String title = getString(R.string.toolbar_album_title_format, album.getName());
+                bind.animToolbar.setTitle(title);
 
                 bind.albumNameLabel.setText(album.getName());
                 bind.albumArtistLabel.setText(album.getArtist());
@@ -166,6 +177,7 @@ public class AlbumPageFragment extends Fragment implements ClickCallback {
                         }
                     }
                 }
+                updateFavoriteMenu(album);
             }
         });
 
@@ -217,9 +229,9 @@ public class AlbumPageFragment extends Fragment implements ClickCallback {
         albumPageViewModel.getAlbumSongLiveList().observe(getViewLifecycleOwner(), songs -> {
             if (bind != null && songs != null && !songs.isEmpty()) {
                 bind.albumPagePlayButton.setOnClickListener(v -> {
-                    List<Child> playable = OfflineMediaUtil.filterPlayable(requireContext(), songs);
+                    List<Child> playable = OfflinePolicy.filterPlayable(requireContext(), songs);
                     if (playable.isEmpty()) {
-                        if (NetworkUtil.isOffline()) {
+                        if (OfflinePolicy.isOffline()) {
                             Snackbar.make(bind.getRoot(), getString(R.string.queue_add_next_unavailable_offline), Snackbar.LENGTH_SHORT).show();
                         }
                         return;
@@ -229,9 +241,9 @@ public class AlbumPageFragment extends Fragment implements ClickCallback {
                 });
 
                 bind.albumPageShuffleButton.setOnClickListener(v -> {
-                    List<Child> playable = OfflineMediaUtil.filterPlayable(requireContext(), songs);
+                    List<Child> playable = OfflinePolicy.filterPlayable(requireContext(), songs);
                     if (playable.isEmpty()) {
-                        if (NetworkUtil.isOffline()) {
+                        if (OfflinePolicy.isOffline()) {
                             Snackbar.make(bind.getRoot(), getString(R.string.queue_add_next_unavailable_offline), Snackbar.LENGTH_SHORT).show();
                         }
                         return;
@@ -244,7 +256,7 @@ public class AlbumPageFragment extends Fragment implements ClickCallback {
             }
 
             if (bind != null) {
-                boolean hasPlayable = OfflineMediaUtil.hasPlayable(requireContext(), songs);
+                boolean hasPlayable = OfflinePolicy.hasPlayable(requireContext(), songs);
                 bind.albumPagePlayButton.setEnabled(hasPlayable);
                 bind.albumPageShuffleButton.setEnabled(hasPlayable);
             }
@@ -257,6 +269,18 @@ public class AlbumPageFragment extends Fragment implements ClickCallback {
                 CustomGlideRequest.Builder.from(requireContext(), album.getCoverArtId(), CustomGlideRequest.ResourceType.Album).build().into(bind.albumCoverImageView);
             }
         });
+    }
+
+    private void updateFavoriteMenu(@Nullable one.chandan.rubato.subsonic.models.AlbumID3 album) {
+        if (favoriteMenuItem == null) return;
+        if (album == null) {
+            favoriteMenuItem.setVisible(false);
+            return;
+        }
+        boolean starred = album.getStarred() != null;
+        favoriteMenuItem.setVisible(true);
+        favoriteMenuItem.setIcon(starred ? R.drawable.ic_favorite : R.drawable.ic_favorites_outlined);
+        favoriteMenuItem.setTitle(starred ? R.string.menu_unheart_album : R.string.menu_heart_album);
     }
 
     private void initSongsView() {
@@ -274,9 +298,7 @@ public class AlbumPageFragment extends Fragment implements ClickCallback {
                         if (action == QueueSwipeHelper.SwipeAction.TOGGLE_FAVORITE) {
                             return true;
                         }
-                        boolean isLocal = LocalMusicRepository.isLocalSong(song);
-                        boolean isDownloaded = isLocal || DownloadUtil.getDownloadTracker(requireContext()).isDownloaded(song.getId());
-                        return !NetworkUtil.isOffline() || isDownloaded;
+                        return OfflinePolicy.canQueue(requireContext(), song);
                     }
 
                     @Override

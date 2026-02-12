@@ -6,14 +6,12 @@ import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MediatorLiveData;
 import androidx.lifecycle.MutableLiveData;
 
-import one.chandan.rubato.repository.AlbumRepository;
-import one.chandan.rubato.repository.ArtistRepository;
 import one.chandan.rubato.repository.DirectoryRepository;
-import one.chandan.rubato.repository.GenreRepository;
+import one.chandan.rubato.repository.LibraryRepository;
 import one.chandan.rubato.repository.LocalSourceRepository;
-import one.chandan.rubato.repository.PlaylistRepository;
 import one.chandan.rubato.repository.ServerRepository;
 import one.chandan.rubato.model.LibrarySourceItem;
 import one.chandan.rubato.model.LocalSource;
@@ -25,6 +23,8 @@ import one.chandan.rubato.subsonic.models.Indexes;
 import one.chandan.rubato.subsonic.models.MusicFolder;
 import one.chandan.rubato.subsonic.models.Playlist;
 import one.chandan.rubato.util.Preferences;
+import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.ui.state.LibraryUiState;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,10 +33,7 @@ public class LibraryViewModel extends AndroidViewModel {
     private static final String TAG = "LibraryViewModel";
 
     private final DirectoryRepository directoryRepository;
-    private final AlbumRepository albumRepository;
-    private final ArtistRepository artistRepository;
-    private final GenreRepository genreRepository;
-    private final PlaylistRepository playlistRepository;
+    private final LibraryRepository libraryRepository;
     private final LocalSourceRepository localSourceRepository;
     private final ServerRepository serverRepository;
 
@@ -47,6 +44,10 @@ public class LibraryViewModel extends AndroidViewModel {
     private final MutableLiveData<List<AlbumID3>> sampleAlbum = new MutableLiveData<>(null);
     private final MutableLiveData<List<ArtistID3>> sampleArtist = new MutableLiveData<>(null);
     private final MutableLiveData<List<Genre>> sampleGenres = new MutableLiveData<>(null);
+    private final MediatorLiveData<LibraryUiState> uiState = new MediatorLiveData<>();
+    private boolean uiStateInitialized = false;
+    private int libraryScrollY = 0;
+    private long lastSyncCompletedAt = 0L;
     private List<MusicFolder> cachedMusicFolders = new ArrayList<>();
     private List<LocalSource> cachedLocalSources = new ArrayList<>();
     private List<Server> cachedServers = new ArrayList<>();
@@ -55,10 +56,7 @@ public class LibraryViewModel extends AndroidViewModel {
         super(application);
 
         directoryRepository = new DirectoryRepository();
-        albumRepository = new AlbumRepository();
-        artistRepository = new ArtistRepository();
-        genreRepository = new GenreRepository();
-        playlistRepository = new PlaylistRepository();
+        libraryRepository = new LibraryRepository();
         localSourceRepository = new LocalSourceRepository();
         serverRepository = new ServerRepository();
     }
@@ -100,7 +98,8 @@ public class LibraryViewModel extends AndroidViewModel {
 
     public LiveData<List<AlbumID3>> getAlbumSample(LifecycleOwner owner) {
         if (sampleAlbum.getValue() == null) {
-            albumRepository.getAlbums("random", 10, null, null).observe(owner, sampleAlbum::postValue);
+            libraryRepository.loadAlbumsLegacy(items ->
+                    sampleAlbum.postValue(selectSample(items, 10, true)));
         }
 
         return sampleAlbum;
@@ -108,7 +107,8 @@ public class LibraryViewModel extends AndroidViewModel {
 
     public LiveData<List<ArtistID3>> getArtistSample(LifecycleOwner owner) {
         if (sampleArtist.getValue() == null) {
-            artistRepository.getArtists(true, 10).observe(owner, sampleArtist::postValue);
+            libraryRepository.loadArtistsLegacy(items ->
+                    sampleArtist.postValue(selectSample(items, 10, true)));
         }
 
         return sampleArtist;
@@ -116,7 +116,8 @@ public class LibraryViewModel extends AndroidViewModel {
 
     public LiveData<List<Genre>> getGenreSample(LifecycleOwner owner) {
         if (sampleGenres.getValue() == null) {
-            genreRepository.getGenres(true, 15).observe(owner, sampleGenres::postValue);
+            libraryRepository.loadGenresLegacy(items ->
+                    sampleGenres.postValue(selectSample(items, 15, true)));
         }
 
         return sampleGenres;
@@ -124,10 +125,49 @@ public class LibraryViewModel extends AndroidViewModel {
 
     public LiveData<List<Playlist>> getPlaylistSample(LifecycleOwner owner) {
         if (playlistSample.getValue() == null) {
-            playlistRepository.getPlaylists(true, 10).observe(owner, playlistSample::postValue);
+            libraryRepository.loadPlaylistsLegacy(items ->
+                    playlistSample.postValue(selectSample(items, 10, true)));
         }
 
         return playlistSample;
+    }
+
+    public LiveData<LibraryUiState> getUiState(LifecycleOwner owner) {
+        if (!uiStateInitialized) {
+            uiStateInitialized = true;
+            getMusicFolders(owner);
+            getLibrarySources(owner);
+            getAlbumSample(owner);
+            getArtistSample(owner);
+            getGenreSample(owner);
+            getPlaylistSample(owner);
+
+            uiState.addSource(musicFolders, value -> rebuildUiState());
+            uiState.addSource(librarySources, value -> rebuildUiState());
+            uiState.addSource(sampleAlbum, value -> rebuildUiState());
+            uiState.addSource(sampleArtist, value -> rebuildUiState());
+            uiState.addSource(sampleGenres, value -> rebuildUiState());
+            uiState.addSource(playlistSample, value -> rebuildUiState());
+            rebuildUiState();
+        }
+
+        return uiState;
+    }
+
+    public int getLibraryScrollY() {
+        return libraryScrollY;
+    }
+
+    public void setLibraryScrollY(int scrollY) {
+        libraryScrollY = Math.max(0, scrollY);
+    }
+
+    public long getLastSyncCompletedAt() {
+        return lastSyncCompletedAt;
+    }
+
+    public void setLastSyncCompletedAt(long completedAt) {
+        lastSyncCompletedAt = completedAt;
     }
 
     private void rebuildLibrarySources() {
@@ -164,18 +204,57 @@ public class LibraryViewModel extends AndroidViewModel {
     }
 
     public void refreshAlbumSample(LifecycleOwner owner) {
-        albumRepository.getAlbums("random", 10, null, null).observe(owner, sampleAlbum::postValue);
+        libraryRepository.loadAlbumsLegacy(items ->
+                sampleAlbum.postValue(selectSample(items, 10, true)));
     }
 
     public void refreshArtistSample(LifecycleOwner owner) {
-        artistRepository.getArtists(true, 10).observe(owner, sampleArtist::postValue);
+        libraryRepository.loadArtistsLegacy(items ->
+                sampleArtist.postValue(selectSample(items, 10, true)));
     }
 
     public void refreshGenreSample(LifecycleOwner owner) {
-        genreRepository.getGenres(true, 15).observe(owner, sampleGenres::postValue);
+        libraryRepository.loadGenresLegacy(items ->
+                sampleGenres.postValue(selectSample(items, 15, true)));
     }
 
     public void refreshPlaylistSample(LifecycleOwner owner) {
-        playlistRepository.getPlaylists(true, 10).observe(owner, playlistSample::postValue);
+        libraryRepository.loadPlaylistsLegacy(items ->
+                playlistSample.postValue(selectSample(items, 10, true)));
+    }
+
+    private void rebuildUiState() {
+        boolean loading = musicFolders.getValue() == null
+                || librarySources.getValue() == null
+                || sampleAlbum.getValue() == null
+                || sampleArtist.getValue() == null
+                || sampleGenres.getValue() == null
+                || playlistSample.getValue() == null;
+
+        LibraryUiState state = new LibraryUiState(
+                loading,
+                NetworkUtil.isOffline(),
+                null,
+                musicFolders.getValue() != null ? musicFolders.getValue() : new ArrayList<>(),
+                librarySources.getValue() != null ? librarySources.getValue() : new ArrayList<>(),
+                sampleAlbum.getValue() != null ? sampleAlbum.getValue() : new ArrayList<>(),
+                sampleArtist.getValue() != null ? sampleArtist.getValue() : new ArrayList<>(),
+                sampleGenres.getValue() != null ? sampleGenres.getValue() : new ArrayList<>(),
+                playlistSample.getValue() != null ? playlistSample.getValue() : new ArrayList<>()
+        );
+
+        uiState.postValue(state);
+    }
+
+    private <T> List<T> selectSample(List<? extends T> items, int limit, boolean shuffle) {
+        if (items == null || items.isEmpty()) return new ArrayList<>();
+        List<T> copy = new ArrayList<>(items);
+        if (shuffle) {
+            java.util.Collections.shuffle(copy);
+        }
+        if (limit > 0 && copy.size() > limit) {
+            return new ArrayList<>(copy.subList(0, limit));
+        }
+        return copy;
     }
 }

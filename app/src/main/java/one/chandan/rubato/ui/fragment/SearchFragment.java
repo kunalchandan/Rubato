@@ -28,7 +28,6 @@ import one.chandan.rubato.databinding.FragmentSearchBinding;
 import one.chandan.rubato.helper.recyclerview.CustomLinearSnapHelper;
 import one.chandan.rubato.helper.recyclerview.QueueSwipeHelper;
 import one.chandan.rubato.interfaces.ClickCallback;
-import one.chandan.rubato.repository.LocalMusicRepository;
 import one.chandan.rubato.service.MediaManager;
 import one.chandan.rubato.service.MediaService;
 import one.chandan.rubato.subsonic.models.Child;
@@ -41,9 +40,8 @@ import one.chandan.rubato.ui.dialog.PlaylistEditorDialog;
 import one.chandan.rubato.glide.CustomGlideRequest;
 import one.chandan.rubato.model.SearchSuggestion;
 import one.chandan.rubato.util.Constants;
-import one.chandan.rubato.util.DownloadUtil;
 import one.chandan.rubato.util.FavoriteUtil;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.SearchIndexUtil;
 import one.chandan.rubato.viewmodel.SearchViewModel;
 import com.google.android.material.imageview.ShapeableImageView;
@@ -136,9 +134,7 @@ public class SearchFragment extends Fragment implements ClickCallback {
                 if (action == QueueSwipeHelper.SwipeAction.TOGGLE_FAVORITE) {
                     return true;
                 }
-                boolean isLocal = LocalMusicRepository.isLocalSong(song);
-                boolean isDownloaded = isLocal || DownloadUtil.getDownloadTracker(requireContext()).isDownloaded(song.getId());
-                return !NetworkUtil.isOffline() || isDownloaded;
+                return OfflinePolicy.canQueue(requireContext(), song);
             }
 
             @Override
@@ -170,6 +166,16 @@ public class SearchFragment extends Fragment implements ClickCallback {
                 }
             }
         });
+
+        // Playlists
+        bind.searchResultPlaylistRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false));
+        bind.searchResultPlaylistRecyclerView.setHasFixedSize(true);
+
+        playlistAdapter = new PlaylistHorizontalAdapter(this, true);
+        bind.searchResultPlaylistRecyclerView.setAdapter(playlistAdapter);
+
+        CustomLinearSnapHelper playlistSnapHelper = new CustomLinearSnapHelper();
+        playlistSnapHelper.attachToRecyclerView(bind.searchResultPlaylistRecyclerView);
     }
 
     private void initSearchView() {
@@ -262,15 +268,6 @@ public class SearchFragment extends Fragment implements ClickCallback {
             }
         });
 
-        // Playlists
-        bind.searchResultPlaylistRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false));
-        bind.searchResultPlaylistRecyclerView.setHasFixedSize(true);
-
-        playlistAdapter = new PlaylistHorizontalAdapter(this, true);
-        bind.searchResultPlaylistRecyclerView.setAdapter(playlistAdapter);
-
-        CustomLinearSnapHelper playlistSnapHelper = new CustomLinearSnapHelper();
-        playlistSnapHelper.attachToRecyclerView(bind.searchResultPlaylistRecyclerView);
     }
 
     private void bindSearchSuggestionIcon(ImageView imageView, SearchSuggestion suggestion) {
@@ -416,7 +413,7 @@ public class SearchFragment extends Fragment implements ClickCallback {
 
     @Override
     public void onMediaClick(Bundle bundle) {
-        if (NetworkUtil.isOffline()) {
+        if (OfflinePolicy.isOffline()) {
             Child song = null;
             if (bundle != null && bundle.containsKey(Constants.TRACK_OBJECT)) {
                 song = bundle.getParcelable(Constants.TRACK_OBJECT);
@@ -428,9 +425,7 @@ public class SearchFragment extends Fragment implements ClickCallback {
                 }
             }
             if (song != null) {
-                boolean isLocal = LocalMusicRepository.isLocalSong(song);
-                boolean isDownloaded = isLocal || DownloadUtil.getDownloadTracker(requireContext()).isDownloaded(song.getId());
-                if (!isDownloaded) {
+                if (!OfflinePolicy.canQueue(requireContext(), song)) {
                     Snackbar.make(bind.getRoot(), getString(R.string.queue_add_next_unavailable_offline), Snackbar.LENGTH_SHORT).show();
                     return;
                 }

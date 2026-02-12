@@ -3,8 +3,8 @@ package one.chandan.rubato.github;
 import one.chandan.rubato.github.api.release.ReleaseClient;
 
 public class Github {
-    private static final String OWNER = "CappielloAntonio";
-    private static final String REPO = "Tempo";
+    private static final String OWNER = "kunalchandan";
+    private static final String REPO = "Rubato";
     private ReleaseClient releaseClient;
 
     public ReleaseClient getReleaseClient() {

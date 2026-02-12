@@ -467,6 +467,9 @@
     <string name="metadata_sync_dialog_subtitle_offline">Server connection: offline</string>
     <string name="metadata_sync_dialog_subtitle_no_server">Server connection: not configured</string>
     <string name="metadata_sync_dialog_active_title">Active download</string>
+    <string name="metadata_sync_action_sync_now">Sync now</string>
+    <string name="settings_metadata_sync_full_title">Full metadata sync</string>
+    <string name="settings_metadata_sync_full_summary">Re-download all metadata (slower, but complete).</string>
     <string name="metadata_sync_log_title">Activity log</string>
     <string name="metadata_sync_log_empty">No sync activity yet.</string>
     <string name="metadata_sync_log_status_active">In progress</string>

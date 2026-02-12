@@ -1,16 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:paddingHorizontal="16dp">
 
-    <com.google.android.material.imageview.ShapeableImageView
-        android:id="@+id/discover_song_cover_image_view"
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/discover_song_cover_card"
         android:layout_width="match_parent"
         android:layout_height="196dp"
-        android:background="?attr/colorSurfaceContainerHighest"
-        android:foreground="@drawable/gradient_discover_background_image"
-        android:scaleType="centerCrop" />
+        android:layout_margin="0dp"
+        app:cardBackgroundColor="?attr/colorSurfaceContainerHighest"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
+        app:cardPreventCornerOverlap="false"
+        app:cardUseCompatPadding="false">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <ImageView
+                android:id="@+id/discover_song_cover_image_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop" />
+
+            <View
+                android:id="@+id/discover_song_cover_scrim"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/gradient_discover_background_image" />
+        </FrameLayout>
+    </com.google.android.material.card.MaterialCardView>
 
     <TextView
         android:id="@+id/title_discover_song_label"

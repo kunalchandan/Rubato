@@ -9,6 +9,6 @@
     <item
         android:width="220dp"
         android:height="220dp"
-        android:drawable="@drawable/ic_splash_logo_rubato"
+        android:drawable="@drawable/ic_rubato_logo"
         android:gravity="center" />
 </layer-list>

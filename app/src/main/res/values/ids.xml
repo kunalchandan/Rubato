@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <item name="tag_rounded_corner_listener" type="id" />
     <item name="tag_swipe_haptic_triggered" type="id" />
 </resources>

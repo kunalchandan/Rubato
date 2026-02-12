@@ -13,6 +13,7 @@ import androidx.fragment.app.DialogFragment;
 
 import one.chandan.rubato.App;
 import one.chandan.rubato.R;
+import one.chandan.rubato.database.AppDatabase;
 import one.chandan.rubato.databinding.DialogMetadataSyncStatusBinding;
 import one.chandan.rubato.repository.CacheRepository;
 import one.chandan.rubato.ui.adapter.MetadataSyncLogAdapter;
@@ -21,18 +22,19 @@ import one.chandan.rubato.subsonic.models.ArtistID3;
 import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.subsonic.models.Genre;
 import one.chandan.rubato.subsonic.models.Playlist;
+import one.chandan.rubato.util.AppExecutors;
 import one.chandan.rubato.util.MetadataSyncManager;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.MetadataStorageReporter;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.Preferences;
+import one.chandan.rubato.util.SearchIndexUtil;
+import one.chandan.rubato.util.ServerConfigUtil;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.gson.reflect.TypeToken;
 
 import java.text.DateFormat;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class MetadataSyncStatusDialog extends DialogFragment {
     private DialogMetadataSyncStatusBinding bind;
@@ -50,12 +52,16 @@ public class MetadataSyncStatusDialog extends DialogFragment {
                         || Preferences.METADATA_SYNC_LYRICS_CURRENT.equals(key)
                         || Preferences.METADATA_SYNC_LYRICS_TOTAL.equals(key)
                         || Preferences.METADATA_SYNC_STARTED.equals(key)
+                        || Preferences.METADATA_SYNC_STORAGE_BYTES.equals(key)
+                        || Preferences.METADATA_SYNC_STORAGE_UPDATED.equals(key)
                         || Preferences.METADATA_SYNC_LOGS.equals(key)) {
                     renderActiveSync();
                     renderLastSynced();
+                    loadMetadataCounts();
                     renderSyncExtras();
                     renderMetadataStorage();
                     renderSyncLogs();
+                    renderSyncNowAction();
                 }
             };
 
@@ -79,6 +85,8 @@ public class MetadataSyncStatusDialog extends DialogFragment {
         renderLastSynced();
         loadMetadataCounts();
         renderSyncExtras();
+        renderSyncNowAction();
+        MetadataStorageReporter.refresh();
         renderMetadataStorage();
         setupLogList();
         renderSyncLogs();
@@ -98,10 +106,16 @@ public class MetadataSyncStatusDialog extends DialogFragment {
 
     private void renderConnectionStatus() {
         if (bind == null) return;
-        int subtitleRes = NetworkUtil.isOffline()
-                ? R.string.metadata_sync_dialog_subtitle_offline
-                : R.string.metadata_sync_dialog_subtitle_online;
+        int subtitleRes;
+        if (!ServerConfigUtil.hasAnyRemoteServer()) {
+            subtitleRes = R.string.metadata_sync_dialog_subtitle_no_server;
+        } else if (OfflinePolicy.isOffline()) {
+            subtitleRes = R.string.metadata_sync_dialog_subtitle_offline;
+        } else {
+            subtitleRes = R.string.metadata_sync_dialog_subtitle_online;
+        }
         bind.metadataSyncDialogSubtitle.setText(subtitleRes);
+        renderSyncNowAction();
     }
 
     private void renderActiveSync() {
@@ -126,6 +140,22 @@ public class MetadataSyncStatusDialog extends DialogFragment {
         } else {
             bind.metadataSyncActiveProgress.setIndeterminate(true);
         }
+    }
+
+    private void renderSyncNowAction() {
+        if (bind == null) return;
+        boolean hasServer = ServerConfigUtil.hasAnyRemoteServer();
+        boolean offline = OfflinePolicy.isOffline();
+        boolean active = Preferences.isMetadataSyncActive();
+        boolean enabled = hasServer && !offline && !active;
+        bind.metadataSyncActionSyncNow.setEnabled(enabled);
+        bind.metadataSyncActionSyncNow.setAlpha(enabled ? 1f : 0.5f);
+        bind.metadataSyncActionSyncNow.setOnClickListener(v -> {
+            if (!enabled) return;
+            bind.metadataSyncActionSyncNow.setEnabled(false);
+            bind.metadataSyncActionSyncNow.setAlpha(0.5f);
+            AppExecutors.io().execute(() -> MetadataSyncManager.runSyncNow(requireContext().getApplicationContext(), false, true));
+        });
     }
 
     private void renderLastSynced() {
@@ -161,8 +191,7 @@ public class MetadataSyncStatusDialog extends DialogFragment {
         }.getType(), bind.metadataSyncGenresValue);
         loadCount(cacheRepository, "albums_all", new TypeToken<List<AlbumID3>>() {
         }.getType(), bind.metadataSyncAlbumsValue);
-        loadCount(cacheRepository, "songs_all", new TypeToken<List<Child>>() {
-        }.getType(), bind.metadataSyncSongsValue);
+        loadSongCount(cacheRepository);
     }
 
     private void renderSyncExtras() {
@@ -179,41 +208,9 @@ public class MetadataSyncStatusDialog extends DialogFragment {
 
     private void renderMetadataStorage() {
         if (bind == null) return;
-        CacheRepository cacheRepository = new CacheRepository();
-        List<String> keys = Arrays.asList("playlists", "artists_all", "genres_all", "albums_all", "songs_all");
-        List<String> likeKeys = Arrays.asList(
-                "lyrics_song_%",
-                "album_tracks_%",
-                "playlist_songs_%",
-                "artist_info_%",
-                "album_info_%",
-                "jf_%"
-        );
-        AtomicLong totalBytes = new AtomicLong(0);
-        AtomicInteger pending = new AtomicInteger(1 + likeKeys.size());
-
-        CacheRepository.CacheResult<Long> accumulator = size -> {
-            if (size != null && size > 0) {
-                totalBytes.addAndGet(size);
-            }
-            if (pending.decrementAndGet() == 0) {
-                String formatted = Formatter.formatShortFileSize(requireContext(), totalBytes.get());
-                Runnable update = () -> {
-                    if (bind == null) return;
-                    bind.metadataSyncStorageValue.setText(formatted);
-                };
-                if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-                    update.run();
-                } else if (isAdded()) {
-                    requireActivity().runOnUiThread(update);
-                }
-            }
-        };
-
-        cacheRepository.loadPayloadSize(keys, accumulator);
-        for (String likeKey : likeKeys) {
-            cacheRepository.loadPayloadSizeLike(likeKey, accumulator);
-        }
+        long bytes = Preferences.getMetadataSyncStorageBytes();
+        String formatted = Formatter.formatShortFileSize(requireContext(), Math.max(bytes, 0));
+        bind.metadataSyncStorageValue.setText(formatted);
     }
 
     private void setupLogList() {
@@ -258,6 +255,39 @@ public class MetadataSyncStatusDialog extends DialogFragment {
                 requireActivity().runOnUiThread(update);
             }
         });
+    }
+
+    private void loadSongCount(CacheRepository cacheRepository) {
+        cacheRepository.loadOrNull("songs_all", new TypeToken<List<Child>>() {
+        }.getType(), value -> {
+            int count = 0;
+            if (value instanceof List) {
+                count = ((List<?>) value).size();
+            }
+            if (count > 0) {
+                updateCount(bind.metadataSyncSongsValue, count);
+                return;
+            }
+            AppExecutors.io().execute(() -> {
+                int fallback = AppDatabase.getInstance()
+                        .librarySearchEntryDao()
+                        .countByType(SearchIndexUtil.TYPE_SONG);
+                updateCount(bind.metadataSyncSongsValue, fallback);
+            });
+        });
+    }
+
+    private void updateCount(TextView target, int count) {
+        int safeCount = Math.max(count, 0);
+        Runnable update = () -> {
+            if (bind == null || target == null) return;
+            target.setText(String.valueOf(safeCount));
+        };
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            update.run();
+        } else if (isAdded()) {
+            requireActivity().runOnUiThread(update);
+        }
     }
 
     private String buildMetadataSyncDescription() {

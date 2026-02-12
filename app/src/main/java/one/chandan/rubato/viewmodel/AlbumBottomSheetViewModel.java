@@ -8,9 +8,8 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import one.chandan.rubato.interfaces.StarCallback;
-import one.chandan.rubato.repository.AlbumRepository;
-import one.chandan.rubato.repository.ArtistRepository;
 import one.chandan.rubato.repository.FavoriteRepository;
+import one.chandan.rubato.repository.LibraryRepository;
 import one.chandan.rubato.repository.SharingRepository;
 import one.chandan.rubato.subsonic.models.AlbumID3;
 import one.chandan.rubato.subsonic.models.ArtistID3;
@@ -22,8 +21,7 @@ import java.util.Date;
 import java.util.List;
 
 public class AlbumBottomSheetViewModel extends AndroidViewModel {
-    private final AlbumRepository albumRepository;
-    private final ArtistRepository artistRepository;
+    private final LibraryRepository libraryRepository;
     private final FavoriteRepository favoriteRepository;
     private final SharingRepository sharingRepository;
 
@@ -32,8 +30,7 @@ public class AlbumBottomSheetViewModel extends AndroidViewModel {
     public AlbumBottomSheetViewModel(@NonNull Application application) {
         super(application);
 
-        albumRepository = new AlbumRepository();
-        artistRepository = new ArtistRepository();
+        libraryRepository = new LibraryRepository();
         favoriteRepository = new FavoriteRepository();
         sharingRepository = new SharingRepository();
     }
@@ -47,11 +44,11 @@ public class AlbumBottomSheetViewModel extends AndroidViewModel {
     }
 
     public LiveData<ArtistID3> getArtist() {
-        return artistRepository.getArtist(album.getArtistId());
+        return libraryRepository.getArtistInfo(album.getArtistId());
     }
 
-    public MutableLiveData<List<Child>> getAlbumTracks() {
-        return albumRepository.getAlbumTracks(album.getId());
+    public LiveData<List<Child>> getAlbumTracks() {
+        return libraryRepository.getAlbumTracks(album.getId());
     }
 
     public void setFavorite() {

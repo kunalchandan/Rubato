@@ -10,24 +10,24 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.DialogFragment;
 
 import one.chandan.rubato.R;
-import one.chandan.rubato.databinding.DialogGithubTempoUpdateBinding;
+import one.chandan.rubato.databinding.DialogGithubRubatoUpdateBinding;
 import one.chandan.rubato.github.models.LatestRelease;
 import one.chandan.rubato.util.Preferences;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import java.util.Objects;
 
-public class GithubTempoUpdateDialog extends DialogFragment {
+public class GithubRubatoUpdateDialog extends DialogFragment {
     private final LatestRelease latestRelease;
 
-    public GithubTempoUpdateDialog(LatestRelease latestRelease) {
+    public GithubRubatoUpdateDialog(LatestRelease latestRelease) {
         this.latestRelease = latestRelease;
     }
 
     @NonNull
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
-        DialogGithubTempoUpdateBinding bind = DialogGithubTempoUpdateBinding.inflate(getLayoutInflater());
+        DialogGithubRubatoUpdateBinding bind = DialogGithubRubatoUpdateBinding.inflate(getLayoutInflater());
 
         MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(requireActivity())
                 .setView(bind.getRoot())
@@ -55,7 +55,7 @@ public class GithubTempoUpdateDialog extends DialogFragment {
         });
 
         alertDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setOnClickListener(v -> {
-            Preferences.setTempoUpdateReminder();
+            Preferences.setRubatoUpdateReminder();
             Objects.requireNonNull(getDialog()).dismiss();
         });
 

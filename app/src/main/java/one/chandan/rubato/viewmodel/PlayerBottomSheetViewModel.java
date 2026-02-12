@@ -14,12 +14,10 @@ import androidx.media3.common.util.UnstableApi;
 import one.chandan.rubato.interfaces.StarCallback;
 import one.chandan.rubato.model.Download;
 import one.chandan.rubato.model.Queue;
-import one.chandan.rubato.repository.AlbumRepository;
-import one.chandan.rubato.repository.ArtistRepository;
 import one.chandan.rubato.repository.FavoriteRepository;
+import one.chandan.rubato.repository.LibraryRepository;
 import one.chandan.rubato.repository.OpenRepository;
 import one.chandan.rubato.repository.QueueRepository;
-import one.chandan.rubato.repository.SongRepository;
 import one.chandan.rubato.subsonic.models.AlbumID3;
 import one.chandan.rubato.subsonic.models.ArtistID3;
 import one.chandan.rubato.subsonic.models.Child;
@@ -31,19 +29,19 @@ import one.chandan.rubato.util.MappingUtil;
 import one.chandan.rubato.util.NetworkUtil;
 import one.chandan.rubato.util.OpenSubsonicExtensionsUtil;
 import one.chandan.rubato.util.Preferences;
+import one.chandan.rubato.util.CollectionUtil;
 
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @OptIn(markerClass = UnstableApi.class)
 public class PlayerBottomSheetViewModel extends AndroidViewModel {
     private static final String TAG = "PlayerBottomSheetViewModel";
 
-    private final SongRepository songRepository;
-    private final AlbumRepository albumRepository;
-    private final ArtistRepository artistRepository;
+    private final LibraryRepository libraryRepository;
     private final QueueRepository queueRepository;
     private final FavoriteRepository favoriteRepository;
     private final OpenRepository openRepository;
@@ -53,16 +51,13 @@ public class PlayerBottomSheetViewModel extends AndroidViewModel {
     private final MutableLiveData<Child> liveMedia = new MutableLiveData<>(null);
     private final MutableLiveData<AlbumID3> liveAlbum = new MutableLiveData<>(null);
     private final MutableLiveData<ArtistID3> liveArtist = new MutableLiveData<>(null);
-    private final MutableLiveData<List<Child>> instantMix = new MutableLiveData<>(null);
     private boolean lyricsSyncState = true;
 
 
     public PlayerBottomSheetViewModel(@NonNull Application application) {
         super(application);
 
-        songRepository = new SongRepository();
-        albumRepository = new AlbumRepository();
-        artistRepository = new ArtistRepository();
+        libraryRepository = new LibraryRepository();
         queueRepository = new QueueRepository();
         favoriteRepository = new FavoriteRepository();
         openRepository = new OpenRepository();
@@ -144,7 +139,7 @@ public class PlayerBottomSheetViewModel extends AndroidViewModel {
             openRepository.getLyricsBySongId(media.getId()).observe(owner, lyricsListLiveData::postValue);
             lyricsLiveData.postValue(null);
         } else {
-            songRepository.getSongLyrics(media).observe(owner, lyricsLiveData::postValue);
+            libraryRepository.getSongLyrics(media).observe(owner, lyricsLiveData::postValue);
             lyricsListLiveData.postValue(null);
         }
     }
@@ -157,7 +152,7 @@ public class PlayerBottomSheetViewModel extends AndroidViewModel {
         if (mediaType != null) {
             switch (mediaType) {
                 case Constants.MEDIA_TYPE_MUSIC:
-                    songRepository.getSong(mediaId).observe(owner, liveMedia::postValue);
+                    libraryRepository.getSong(mediaId).observe(owner, liveMedia::postValue);
                     descriptionLiveData.postValue(null);
                     break;
                 case Constants.MEDIA_TYPE_PODCAST:
@@ -175,7 +170,7 @@ public class PlayerBottomSheetViewModel extends AndroidViewModel {
         if (mediaType != null) {
             switch (mediaType) {
                 case Constants.MEDIA_TYPE_MUSIC:
-                    albumRepository.getAlbum(AlbumId).observe(owner, liveAlbum::postValue);
+                    libraryRepository.getAlbum(AlbumId).observe(owner, liveAlbum::postValue);
                     break;
                 case Constants.MEDIA_TYPE_PODCAST:
                     liveAlbum.postValue(null);
@@ -192,7 +187,7 @@ public class PlayerBottomSheetViewModel extends AndroidViewModel {
         if (mediaType != null) {
             switch (mediaType) {
                 case Constants.MEDIA_TYPE_MUSIC:
-                    artistRepository.getArtist(ArtistId).observe(owner, liveArtist::postValue);
+                    libraryRepository.getArtistInfo(ArtistId).observe(owner, liveArtist::postValue);
                     break;
                 case Constants.MEDIA_TYPE_PODCAST:
                     liveArtist.postValue(null);
@@ -210,11 +205,57 @@ public class PlayerBottomSheetViewModel extends AndroidViewModel {
     }
 
     public LiveData<List<Child>> getMediaInstantMix(LifecycleOwner owner, Child media) {
-        instantMix.setValue(Collections.emptyList());
+        MutableLiveData<List<Child>> result = new MutableLiveData<>(Collections.emptyList());
+        if (media == null || media.getId() == null) {
+            result.setValue(Collections.emptyList());
+            return result;
+        }
 
-        songRepository.getInstantMix(media.getId(), 20).observe(owner, instantMix::postValue);
+        AtomicBoolean fallbackTriggered = new AtomicBoolean(false);
 
-        return instantMix;
+        libraryRepository.getSongInstantMix(media.getId(), 20).observe(owner, songs -> {
+            List<Child> safe = CollectionUtil.arrayListOrEmpty(songs);
+            if (!safe.isEmpty()) {
+                result.postValue(safe);
+                return;
+            }
+            if (fallbackTriggered.getAndSet(true)) {
+                return;
+            }
+            triggerArtistFallback(owner, media, result);
+        });
+
+        return result;
+    }
+
+    private void triggerArtistFallback(LifecycleOwner owner, Child media, MutableLiveData<List<Child>> result) {
+        String artistId = media.getArtistId();
+        String artistName = media.getArtist();
+
+        if (artistId != null && !artistId.trim().isEmpty()) {
+            ArtistID3 artist = new ArtistID3(artistId, artistName, null, 0, null);
+            libraryRepository.getArtistInstantMix(artist, 20).observe(owner, songs -> {
+                List<Child> safe = CollectionUtil.arrayListOrEmpty(songs);
+                if (!safe.isEmpty()) {
+                    result.postValue(safe);
+                    return;
+                }
+                if (artistName != null && !artistName.trim().isEmpty()) {
+                    libraryRepository.getArtistTopSongs(artistName, 20)
+                            .observe(owner, items -> result.postValue(CollectionUtil.arrayListOrEmpty(items)));
+                } else {
+                    result.postValue(Collections.emptyList());
+                }
+            });
+            return;
+        }
+
+        if (artistName != null && !artistName.trim().isEmpty()) {
+            libraryRepository.getArtistTopSongs(artistName, 20)
+                    .observe(owner, items -> result.postValue(CollectionUtil.arrayListOrEmpty(items)));
+        } else {
+            result.postValue(Collections.emptyList());
+        }
     }
 
     public LiveData<PlayQueue> getPlayQueue() {

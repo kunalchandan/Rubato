@@ -53,6 +53,11 @@ public class ShareHorizontalAdapter extends RecyclerView.Adapter<ShareHorizontal
     }
 
     @Override
+    public int getItemViewType(int position) {
+        return R.layout.item_horizontal_share;
+    }
+
+    @Override
     public long getItemId(int position) {
         if (position < 0 || position >= shares.size()) {
             return RecyclerView.NO_ID;

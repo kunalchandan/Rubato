@@ -27,7 +27,7 @@ import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.subsonic.models.Playlist;
 import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.MusicUtil;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.PlaylistCoverCache;
 import com.google.gson.reflect.TypeToken;
 
@@ -106,7 +106,7 @@ public class PlaylistHorizontalAdapter extends RecyclerView.Adapter<PlaylistHori
 
         Drawable cachedCover = PlaylistCoverCache.load(holder.itemView.getContext(), playlist.getId());
         boolean hasCoverArt = playlist.getCoverArtId() != null && !playlist.getCoverArtId().isEmpty();
-        boolean useCachedOnly = NetworkUtil.isOffline() || !hasCoverArt;
+        boolean useCachedOnly = OfflinePolicy.isOffline() || !hasCoverArt;
 
         if (cachedCover != null && useCachedOnly) {
             holder.item.playlistCoverImageView.setImageDrawable(cachedCover);

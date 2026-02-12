@@ -24,7 +24,7 @@ import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.DownloadUtil;
 import one.chandan.rubato.repository.LocalMusicRepository;
 import one.chandan.rubato.util.MusicUtil;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.Preferences;
 
 import java.util.ArrayList;
@@ -52,13 +52,15 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<SongHorizontalAd
             List<Child> filteredList = new ArrayList<>();
 
             if (constraint == null || constraint.length() == 0) {
+                currentFilter = "";
                 filteredList.addAll(songsFull);
             } else {
                 String filterPattern = constraint.toString().toLowerCase().trim();
                 currentFilter = filterPattern;
 
                 for (Child item : songsFull) {
-                    if (item.getTitle().toLowerCase().contains(filterPattern)) {
+                    String title = item.getTitle();
+                    if (title != null && title.toLowerCase().contains(filterPattern)) {
                         filteredList.add(item);
                     }
                 }
@@ -72,10 +74,13 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<SongHorizontalAd
 
         @Override
         protected void publishResults(CharSequence constraint, FilterResults results) {
+            String expected = currentFilter == null ? "" : currentFilter;
+            String incoming = constraint == null ? "" : constraint.toString();
+            if (!incoming.equals(expected)) {
+                return;
+            }
             List<Child> next = results.values == null ? Collections.emptyList() : (List<Child>) results.values;
-            DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new SongDiffCallback(songs, next));
-            songs = next;
-            diffResult.dispatchUpdatesTo(SongHorizontalAdapter.this);
+            applyItems(next);
         }
     };
 
@@ -107,7 +112,7 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<SongHorizontalAd
         Child song = songs.get(position);
         boolean isLocal = LocalMusicRepository.isLocalSong(song);
         boolean isDownloaded = isLocal || DownloadUtil.getDownloadTracker(holder.itemView.getContext()).isDownloaded(song.getId());
-        boolean offlineUnavailable = NetworkUtil.isOffline() && !isDownloaded;
+        boolean offlineUnavailable = OfflinePolicy.isOffline() && !isDownloaded;
 
         holder.item.searchResultSongTitleTextView.setText(song.getTitle());
 
@@ -185,13 +190,22 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<SongHorizontalAd
     }
 
     @Override
+    public int getItemViewType(int position) {
+        return R.layout.item_horizontal_track;
+    }
+
+    @Override
     public int getItemCount() {
         return songs.size();
     }
 
     public void setItems(List<Child> songs) {
-        this.songsFull = songs != null ? songs : Collections.emptyList();
-        filtering.filter(currentFilter);
+        this.songsFull = songs != null ? new ArrayList<>(songs) : Collections.emptyList();
+        if (currentFilter == null || currentFilter.isEmpty()) {
+            applyItems(this.songsFull);
+        } else {
+            filtering.filter(currentFilter);
+        }
     }
 
     @Override
@@ -206,14 +220,20 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<SongHorizontalAd
         if (song == null) {
             return RecyclerView.NO_ID;
         }
-        String id = song.getId();
-        if (id != null) {
-            return id.hashCode();
+        return uniqueKeyFor(song).hashCode();
+    }
+
+    private static String uniqueKeyFor(Child song) {
+        if (song == null) {
+            return "";
         }
-        String key = (song.getTitle() == null ? "" : song.getTitle())
+        return (song.getId() == null ? "" : song.getId())
+                + "|" + (song.getAlbumId() == null ? "" : song.getAlbumId())
+                + "|" + (song.getArtistId() == null ? "" : song.getArtistId())
+                + "|" + (song.getPath() == null ? "" : song.getPath())
+                + "|" + (song.getAlbum() == null ? "" : song.getAlbum())
                 + "|" + (song.getArtist() == null ? "" : song.getArtist())
-                + "|" + (song.getAlbum() == null ? "" : song.getAlbum());
-        return key.hashCode();
+                + "|" + (song.getTitle() == null ? "" : song.getTitle());
     }
 
     private static class SongDiffCallback extends DiffUtil.Callback {
@@ -242,7 +262,7 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<SongHorizontalAd
             if (oldItem == null || newItem == null) {
                 return false;
             }
-            return Objects.equals(oldItem.getId(), newItem.getId());
+            return Objects.equals(uniqueKeyFor(oldItem), uniqueKeyFor(newItem));
         }
 
         @Override
@@ -274,6 +294,13 @@ public class SongHorizontalAdapter extends RecyclerView.Adapter<SongHorizontalAd
 
     public List<Child> getItems() {
         return songs;
+    }
+
+    private void applyItems(List<Child> next) {
+        List<Child> safeNext = next == null ? Collections.emptyList() : new ArrayList<>(next);
+        DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new SongDiffCallback(songs, safeNext));
+        songs = safeNext;
+        diffResult.dispatchUpdatesTo(this);
     }
 
     public void swapItems(int fromPosition, int toPosition) {

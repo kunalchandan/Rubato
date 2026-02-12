@@ -4,12 +4,35 @@
     <dimen name="bottom_sheet_behavior_peek_height">136dp</dimen>
     <dimen name="bottom_sheet_peek_height">56dp</dimen>
     <dimen name="now_playing_bottom_peek_height">64dp</dimen>
-    <dimen name="global_padding_bottom">164dp</dimen>
+    <dimen name="bottom_navigation_height">80dp</dimen>
+    <dimen name="global_padding_bottom">@dimen/bottom_navigation_height</dimen>
     <dimen name="radius">2dp</dimen>
     <dimen name="dots_height">2dp</dimen>
     <dimen name="downloaded_item_padding">12dp</dimen>
-    <dimen name="flashback_corner_radius">8dp</dimen>
-    <dimen name="widget_corner_radius">20dp</dimen>
-    <dimen name="widget_control_radius">10dp</dimen>
+    <dimen name="flashback_corner_radius">16dp</dimen>
+    <dimen name="widget_corner_radius">28dp</dimen>
+    <dimen name="widget_control_radius">14dp</dimen>
+    <dimen name="launcher_icon_inset_horizontal">32dp</dimen>
+    <dimen name="launcher_icon_inset_top">6dp</dimen>
+    <dimen name="launcher_icon_inset_bottom">64dp</dimen>
     <dimen name="widget_circle_size">96dp</dimen>
+
+    <dimen name="space_2">2dp</dimen>
+    <dimen name="space_4">4dp</dimen>
+    <dimen name="space_6">6dp</dimen>
+    <dimen name="space_8">8dp</dimen>
+    <dimen name="space_12">12dp</dimen>
+    <dimen name="space_16">16dp</dimen>
+    <dimen name="space_20">20dp</dimen>
+    <dimen name="space_24">24dp</dimen>
+    <dimen name="space_32">32dp</dimen>
+
+    <dimen name="radius_s">8dp</dimen>
+    <dimen name="radius_m">12dp</dimen>
+    <dimen name="radius_l">16dp</dimen>
+    <dimen name="radius_xl">20dp</dimen>
+
+    <dimen name="icon_size_s">16dp</dimen>
+    <dimen name="icon_size_m">20dp</dimen>
+    <dimen name="icon_size_l">24dp</dimen>
 </resources>

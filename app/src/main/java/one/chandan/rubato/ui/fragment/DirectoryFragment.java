@@ -25,6 +25,7 @@ import one.chandan.rubato.databinding.FragmentDirectoryBinding;
 import one.chandan.rubato.interfaces.ClickCallback;
 import one.chandan.rubato.interfaces.DialogClickCallback;
 import one.chandan.rubato.model.Download;
+import one.chandan.rubato.repository.DirectoryRepository;
 import one.chandan.rubato.service.MediaManager;
 import one.chandan.rubato.service.MediaService;
 import one.chandan.rubato.subsonic.models.Child;
@@ -159,13 +160,13 @@ public class DirectoryFragment extends Fragment implements ClickCallback {
 
             musicDirectoryAdapter.setItems(directory.getChildren());
 
-            menuItem.setVisible(
-                    directory.getChildren() != null && directory.getChildren()
-                            .stream()
-                            .filter(child -> !child.isDir())
-                            .findFirst()
-                            .orElse(null) != null
-            );
+            boolean hasSongs = directory.getChildren() != null && directory.getChildren()
+                    .stream()
+                    .filter(child -> !child.isDir())
+                    .findFirst()
+                    .orElse(null) != null;
+            boolean isLocalDirectory = DirectoryRepository.isLocalDirectoryId(directory.getId());
+            menuItem.setVisible(hasSongs && !isLocalDirectory);
         });
     }
 

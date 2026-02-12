@@ -118,7 +118,11 @@ public class VisualizerSettingsDialog extends BottomSheetDialogFragment {
         barCountSlider.setValueFrom(24f);
         barCountSlider.setValueTo(96f);
         barCountSlider.setStepSize(4f);
-        barCountSlider.setValue(Preferences.getVisualizerBarCount());
+        float barCountValue = snapToStep(Preferences.getVisualizerBarCount(), 24f, 96f, 4f);
+        barCountSlider.setValue(barCountValue);
+        if (Math.round(barCountValue) != Preferences.getVisualizerBarCount()) {
+            Preferences.setVisualizerBarCount(Math.round(barCountValue));
+        }
         barCountSlider.addOnChangeListener((slider, value, fromUser) -> {
             int barCount = Math.round(value);
             Preferences.setVisualizerBarCount(barCount);
@@ -129,7 +133,11 @@ public class VisualizerSettingsDialog extends BottomSheetDialogFragment {
         opacitySlider.setValueFrom(0.2f);
         opacitySlider.setValueTo(0.8f);
         opacitySlider.setStepSize(0.05f);
-        opacitySlider.setValue(Preferences.getVisualizerOpacity());
+        float opacityValue = snapToStep(Preferences.getVisualizerOpacity(), 0.2f, 0.8f, 0.05f);
+        opacitySlider.setValue(opacityValue);
+        if (opacityValue != Preferences.getVisualizerOpacity()) {
+            Preferences.setVisualizerOpacity(opacityValue);
+        }
         opacitySlider.addOnChangeListener((slider, value, fromUser) -> {
             Preferences.setVisualizerOpacity(value);
             updateLabels();
@@ -139,7 +147,11 @@ public class VisualizerSettingsDialog extends BottomSheetDialogFragment {
         smoothingSlider.setValueFrom(0.1f);
         smoothingSlider.setValueTo(0.9f);
         smoothingSlider.setStepSize(0.05f);
-        smoothingSlider.setValue(Preferences.getVisualizerSmoothing());
+        float smoothingValue = snapToStep(Preferences.getVisualizerSmoothing(), 0.1f, 0.9f, 0.05f);
+        smoothingSlider.setValue(smoothingValue);
+        if (smoothingValue != Preferences.getVisualizerSmoothing()) {
+            Preferences.setVisualizerSmoothing(smoothingValue);
+        }
         smoothingSlider.addOnChangeListener((slider, value, fromUser) -> {
             Preferences.setVisualizerSmoothing(value);
             updateLabels();
@@ -149,7 +161,11 @@ public class VisualizerSettingsDialog extends BottomSheetDialogFragment {
         scaleSlider.setValueFrom(0.8f);
         scaleSlider.setValueTo(1.6f);
         scaleSlider.setStepSize(0.1f);
-        scaleSlider.setValue(Preferences.getVisualizerScale());
+        float scaleValue = snapToStep(Preferences.getVisualizerScale(), 0.8f, 1.6f, 0.1f);
+        scaleSlider.setValue(scaleValue);
+        if (scaleValue != Preferences.getVisualizerScale()) {
+            Preferences.setVisualizerScale(scaleValue);
+        }
         scaleSlider.addOnChangeListener((slider, value, fromUser) -> {
             Preferences.setVisualizerScale(value);
             updateLabels();
@@ -159,7 +175,11 @@ public class VisualizerSettingsDialog extends BottomSheetDialogFragment {
         fpsSlider.setValueFrom(30f);
         fpsSlider.setValueTo(60f);
         fpsSlider.setStepSize(15f);
-        fpsSlider.setValue(Preferences.getVisualizerFps());
+        float fpsValue = snapToStep(Preferences.getVisualizerFps(), 30f, 60f, 15f);
+        fpsSlider.setValue(fpsValue);
+        if (Math.round(fpsValue) != Preferences.getVisualizerFps()) {
+            Preferences.setVisualizerFps(Math.round(fpsValue));
+        }
         fpsSlider.addOnChangeListener((slider, value, fromUser) -> {
             Preferences.setVisualizerFps(Math.round(value));
             updateLabels();
@@ -227,11 +247,11 @@ public class VisualizerSettingsDialog extends BottomSheetDialogFragment {
 
     private void applyPreviewConfig() {
         if (previewView == null) return;
-        int barCount = Preferences.getVisualizerBarCount();
-        float opacity = Preferences.getVisualizerOpacity();
-        float smoothing = Preferences.getVisualizerSmoothing();
-        float scale = Preferences.getVisualizerScale();
-        int fps = Preferences.getVisualizerFps();
+        int barCount = Math.round(snapToStep(Preferences.getVisualizerBarCount(), 24f, 96f, 4f));
+        float opacity = snapToStep(Preferences.getVisualizerOpacity(), 0.2f, 0.8f, 0.05f);
+        float smoothing = snapToStep(Preferences.getVisualizerSmoothing(), 0.1f, 0.9f, 0.05f);
+        float scale = snapToStep(Preferences.getVisualizerScale(), 0.8f, 1.6f, 0.1f);
+        int fps = Math.round(snapToStep(Preferences.getVisualizerFps(), 30f, 60f, 15f));
         int colorMode = "gradient".equals(Preferences.getVisualizerColorMode())
                 ? VisualizerView.COLOR_MODE_GRADIENT
                 : VisualizerView.COLOR_MODE_ACCENT;
@@ -245,6 +265,16 @@ public class VisualizerSettingsDialog extends BottomSheetDialogFragment {
         boolean peakCaps = Preferences.isVisualizerPeakCapsEnabled();
         previewIntervalMs = Math.max(16L, 1000L / Math.max(15, fps));
         previewView.setConfig(barCount, opacity, smoothing, scale, fps, colorMode, peakCaps, mode);
+    }
+
+    private float snapToStep(float value, float min, float max, float step) {
+        if (Float.isNaN(value)) return min;
+        float clamped = Math.max(min, Math.min(max, value));
+        float steps = Math.round((clamped - min) / step);
+        float snapped = min + steps * step;
+        if (snapped < min) return min;
+        if (snapped > max) return max;
+        return snapped;
     }
 
     private void setPreviewEnabled(boolean enabled) {

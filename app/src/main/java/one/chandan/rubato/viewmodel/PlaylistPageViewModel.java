@@ -8,7 +8,7 @@ import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
-import one.chandan.rubato.repository.PlaylistRepository;
+import one.chandan.rubato.repository.LibraryRepository;
 import one.chandan.rubato.subsonic.models.Child;
 import one.chandan.rubato.subsonic.models.Playlist;
 
@@ -16,22 +16,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PlaylistPageViewModel extends AndroidViewModel {
-    private final PlaylistRepository playlistRepository;
+    private final LibraryRepository libraryRepository;
 
     private Playlist playlist;
-    private MutableLiveData<List<Child>> playlistSongs;
+    private LiveData<List<Child>> playlistSongs;
     private String playlistId;
 
     public PlaylistPageViewModel(@NonNull Application application) {
         super(application);
 
-        playlistRepository = new PlaylistRepository();
+        libraryRepository = new LibraryRepository();
     }
 
     public LiveData<List<Child>> getPlaylistSongLiveList() {
         if (playlistSongs == null && playlist != null) {
             playlistId = playlist.getId();
-            playlistSongs = playlistRepository.getPlaylistSongs(playlistId);
+            playlistSongs = libraryRepository.getPlaylistSongs(playlistId);
         }
         return playlistSongs;
     }
@@ -49,14 +49,14 @@ public class PlaylistPageViewModel extends AndroidViewModel {
         }
         if (playlistSongs == null || playlistId == null || !playlist.getId().equals(playlistId)) {
             playlistId = playlist.getId();
-            playlistSongs = playlistRepository.getPlaylistSongs(playlistId);
+            playlistSongs = libraryRepository.getPlaylistSongs(playlistId);
         }
     }
 
     public LiveData<Boolean> isPinned(LifecycleOwner owner) {
         MutableLiveData<Boolean> isPinnedLive = new MutableLiveData<>();
 
-        playlistRepository.getPinnedPlaylists().observe(owner, playlists -> {
+        libraryRepository.getPinnedPlaylists().observe(owner, playlists -> {
             isPinnedLive.postValue(playlists.stream().anyMatch(obj -> obj.getId().equals(playlist.getId())));
         });
 
@@ -64,11 +64,7 @@ public class PlaylistPageViewModel extends AndroidViewModel {
     }
 
     public void setPinned(boolean isNowPinned) {
-        if (isNowPinned) {
-            playlistRepository.insert(playlist);
-        } else {
-            playlistRepository.delete(playlist);
-        }
+        libraryRepository.setPinned(playlist, isNowPinned);
     }
 
     public void updatePlaylistOrder(List<Child> songs) {
@@ -86,6 +82,6 @@ public class PlaylistPageViewModel extends AndroidViewModel {
         }
 
         boolean isPublic = playlist.isUniversal() == null || playlist.isUniversal();
-        playlistRepository.updatePlaylist(playlist.getId(), playlist.getName(), isPublic, songIds, songIndexToRemove);
+        libraryRepository.updatePlaylist(playlist.getId(), playlist.getName(), isPublic, songIds, songIndexToRemove);
     }
 }

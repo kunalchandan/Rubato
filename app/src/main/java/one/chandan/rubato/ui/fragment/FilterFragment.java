@@ -1,6 +1,9 @@
 package one.chandan.rubato.ui.fragment;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -20,8 +23,15 @@ import one.chandan.rubato.subsonic.models.Genre;
 import one.chandan.rubato.ui.activity.MainActivity;
 import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.MusicUtil;
+import one.chandan.rubato.sync.SyncOrchestrator;
 import one.chandan.rubato.viewmodel.FilterViewModel;
 import com.google.android.material.chip.Chip;
+
+import java.util.Collections;
+import java.util.List;
+
+import java.util.Collections;
+import java.util.List;
 
 @OptIn(markerClass = UnstableApi.class)
 public class FilterFragment extends Fragment {
@@ -30,6 +40,10 @@ public class FilterFragment extends Fragment {
     private MainActivity activity;
     private FragmentFilterBinding bind;
     private FilterViewModel filterViewModel;
+    private final Handler syncHandler = new Handler(Looper.getMainLooper());
+    private Runnable syncRefreshRunnable;
+    private long lastSyncRefreshMs = 0L;
+    private long lastSyncCompletedAt = 0L;
 
 
     @Nullable
@@ -43,12 +57,17 @@ public class FilterFragment extends Fragment {
         init();
         initAppBar();
         setFilterChips();
+        bindSyncState();
         return view;
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        if (syncRefreshRunnable != null) {
+            syncHandler.removeCallbacks(syncRefreshRunnable);
+            syncRefreshRunnable = null;
+        }
         bind = null;
     }
 
@@ -87,9 +106,18 @@ public class FilterFragment extends Fragment {
 
     private void setFilterChips() {
         filterViewModel.getGenreList().observe(getViewLifecycleOwner(), genres -> {
+            if (bind == null) return;
             bind.loadingProgressBar.setVisibility(View.GONE);
             bind.filterContainer.setVisibility(View.VISIBLE);
-            for (Genre genre : genres) {
+            bind.filtersChipsGroup.removeAllViews();
+            if (genres == null || genres.isEmpty()) {
+                return;
+            }
+            List<Genre> safeGenres = genres != null ? genres : Collections.emptyList();
+            for (Genre genre : safeGenres) {
+                if (genre == null || genre.getGenre() == null) {
+                    continue;
+                }
                 Chip chip = (Chip) requireActivity().getLayoutInflater().inflate(R.layout.chip_search_filter_genre, null, false);
                 chip.setText(genre.getGenre());
                 chip.setChecked(filterViewModel.getFilters().contains(genre.getGenre()));
@@ -102,5 +130,34 @@ public class FilterFragment extends Fragment {
                 bind.filtersChipsGroup.addView(chip);
             }
         });
+    }
+
+    private void bindSyncState() {
+        SyncOrchestrator.getSyncState().observe(getViewLifecycleOwner(), state -> {
+            if (state == null) return;
+            if (state.getActive()) {
+                return;
+            }
+            long completedAt = state.getLastCompletedAt();
+            if (completedAt > 0 && completedAt != lastSyncCompletedAt) {
+                lastSyncCompletedAt = completedAt;
+                scheduleSyncRefresh();
+            }
+        });
+    }
+
+    private void scheduleSyncRefresh() {
+        if (syncRefreshRunnable != null) {
+            syncHandler.removeCallbacks(syncRefreshRunnable);
+        }
+        long now = SystemClock.elapsedRealtime();
+        long minIntervalMs = 1500L;
+        long delay = Math.max(0L, minIntervalMs - (now - lastSyncRefreshMs));
+        syncRefreshRunnable = () -> {
+            if (bind == null || filterViewModel == null) return;
+            lastSyncRefreshMs = SystemClock.elapsedRealtime();
+            filterViewModel.refreshGenreList();
+        };
+        syncHandler.postDelayed(syncRefreshRunnable, delay);
     }
 }

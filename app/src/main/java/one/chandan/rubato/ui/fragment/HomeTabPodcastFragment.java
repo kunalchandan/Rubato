@@ -48,6 +48,13 @@ public class HomeTabPodcastFragment extends Fragment implements ClickCallback, P
     private PodcastChannelHorizontalAdapter podcastChannelHorizontalAdapter;
 
     private ListenableFuture<MediaBrowser> mediaBrowserListenableFuture;
+    private final Handler refreshHandler = new Handler();
+    private final Runnable refreshRunnable = () -> {
+        if (podcastViewModel != null) {
+            podcastViewModel.refreshPodcastChannels(getViewLifecycleOwner());
+            podcastViewModel.refreshNewestPodcastEpisodes(getViewLifecycleOwner());
+        }
+    };
 
     @Nullable
     @Override
@@ -87,6 +94,7 @@ public class HomeTabPodcastFragment extends Fragment implements ClickCallback, P
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        refreshHandler.removeCallbacks(refreshRunnable);
         bind = null;
     }
 
@@ -180,9 +188,7 @@ public class HomeTabPodcastFragment extends Fragment implements ClickCallback, P
 
     @Override
     public void onDismiss() {
-        new Handler().postDelayed(() -> {
-            if (podcastViewModel != null) podcastViewModel.refreshPodcastChannels(getViewLifecycleOwner());
-            if (podcastViewModel != null) podcastViewModel.refreshNewestPodcastEpisodes(getViewLifecycleOwner());
-        }, 1000);
+        refreshHandler.removeCallbacks(refreshRunnable);
+        refreshHandler.postDelayed(refreshRunnable, 1000);
     }
 }

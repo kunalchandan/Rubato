@@ -12,17 +12,23 @@ import androidx.recyclerview.widget.RecyclerView;
 import one.chandan.rubato.databinding.ItemLibraryCatalogueArtistBinding;
 import one.chandan.rubato.glide.CustomGlideRequest;
 import one.chandan.rubato.interfaces.ClickCallback;
+import one.chandan.rubato.model.ArtistPlayStat;
 import one.chandan.rubato.subsonic.models.ArtistID3;
 import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.MusicUtil;
+import one.chandan.rubato.util.SearchIndexUtil;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ArtistCatalogueAdapter extends RecyclerView.Adapter<ArtistCatalogueAdapter.ViewHolder> implements Filterable {
     private final ClickCallback click;
+    private Map<String, ArtistPlayStat> statsById = Collections.emptyMap();
+    private Map<String, ArtistPlayStat> statsByName = Collections.emptyMap();
 
     private final Filter filtering = new Filter() {
         @Override
@@ -97,6 +103,27 @@ public class ArtistCatalogueAdapter extends RecyclerView.Adapter<ArtistCatalogue
         notifyDataSetChanged();
     }
 
+    public void setArtistStats(List<ArtistPlayStat> stats) {
+        if (stats == null || stats.isEmpty()) {
+            statsById = Collections.emptyMap();
+            statsByName = Collections.emptyMap();
+            return;
+        }
+        Map<String, ArtistPlayStat> idMap = new HashMap<>();
+        Map<String, ArtistPlayStat> nameMap = new HashMap<>();
+        for (ArtistPlayStat stat : stats) {
+            if (stat == null) continue;
+            if (stat.artistId != null && !stat.artistId.isEmpty()) {
+                idMap.put(stat.artistId, stat);
+            }
+            if (stat.artistName != null && !stat.artistName.isEmpty()) {
+                nameMap.put(SearchIndexUtil.normalize(stat.artistName), stat);
+            }
+        }
+        statsById = idMap;
+        statsByName = nameMap;
+    }
+
     @Override
     public int getItemViewType(int position) {
         return position;
@@ -151,8 +178,45 @@ public class ArtistCatalogueAdapter extends RecyclerView.Adapter<ArtistCatalogue
             case Constants.ARTIST_ORDER_BY_RANDOM:
                 Collections.shuffle(artists);
                 break;
+            case Constants.ARTIST_ORDER_BY_MOST_PLAYED:
+                artists.sort((a, b) -> {
+                    ArtistPlayStat sa = resolveStat(a);
+                    ArtistPlayStat sb = resolveStat(b);
+                    int countA = sa != null ? sa.playCount : 0;
+                    int countB = sb != null ? sb.playCount : 0;
+                    if (countA != countB) return countB - countA;
+                    String nameA = a.getName() != null ? a.getName() : "";
+                    String nameB = b.getName() != null ? b.getName() : "";
+                    return nameA.compareToIgnoreCase(nameB);
+                });
+                break;
+            case Constants.ARTIST_ORDER_BY_RECENTLY_PLAYED:
+                artists.sort((a, b) -> {
+                    ArtistPlayStat sa = resolveStat(a);
+                    ArtistPlayStat sb = resolveStat(b);
+                    long tsA = sa != null ? sa.lastPlayed : 0L;
+                    long tsB = sb != null ? sb.lastPlayed : 0L;
+                    if (tsA != tsB) return Long.compare(tsB, tsA);
+                    String nameA = a.getName() != null ? a.getName() : "";
+                    String nameB = b.getName() != null ? b.getName() : "";
+                    return nameA.compareToIgnoreCase(nameB);
+                });
+                break;
         }
 
         notifyDataSetChanged();
+    }
+
+    private ArtistPlayStat resolveStat(ArtistID3 artist) {
+        if (artist == null) return null;
+        String id = artist.getId();
+        if (id != null && statsById.containsKey(id)) {
+            return statsById.get(id);
+        }
+        String name = artist.getName();
+        if (name != null) {
+            return statsByName.get(SearchIndexUtil.normalize(name));
+        }
+        return null;
     }
 }

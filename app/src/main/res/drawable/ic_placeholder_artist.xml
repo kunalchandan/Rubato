@@ -1,18 +1,11 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:name="vector"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:name="path"
-        android:fillColor="?attr/colorSurfaceVariant"
-        android:pathData="M 0 0 L 24 0 L 24 24 L 0 24 Z"
-        android:strokeWidth="1" />
-    <path
-        android:name="path_1"
-        android:fillColor="?attr/colorOnSurfaceVariant"
-        android:fillType="evenOdd"
-        android:pathData="M 14.531 12.601 C 15.273 13.096 15.793 13.767 15.793 14.661 L 15.793 16.258 L 17.961 16.258 L 17.961 14.661 C 17.961 13.501 16.026 12.814 14.531 12.601 Z M 8.207 9.871 C 8.207 9.307 8.435 8.765 8.842 8.366 C 9.248 7.967 9.8 7.742 10.374 7.742 C 10.949 7.742 11.501 7.967 11.907 8.366 C 12.313 8.765 12.542 9.307 12.542 9.871 C 12.542 10.435 12.313 10.978 11.907 11.376 C 11.501 11.775 10.949 12 10.374 12 C 9.8 12 9.248 11.775 8.842 11.376 C 8.435 10.978 8.207 10.435 8.207 9.871 M 13.626 12 C 14.823 12 15.793 11.047 15.793 9.871 C 15.793 8.695 14.823 7.742 13.626 7.742 C 13.371 7.742 13.133 7.795 12.905 7.87 C 13.355 8.418 13.626 9.115 13.626 9.871 C 13.626 10.627 13.355 11.324 12.905 11.872 C 13.133 11.947 13.371 12 13.626 12 Z M 10.374 12.532 C 8.927 12.532 6.039 13.245 6.039 14.661 L 6.039 16.258 L 14.71 16.258 L 14.71 14.661 C 14.71 13.245 11.821 12.532 10.374 12.532 Z"
-        android:strokeWidth="1" />
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <group android:translateX="0" android:translateY="960.0">
+        <path
+            android:fillColor="?attr/colorSurfaceVariant"
+            android:pathData="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Zm80-80h480v-32q0-11-5.5-20T700-306q-54-27-109-40.5T480-360q-56 0-111 13.5T260-306q-9 5-14.5 14t-5.5 20v32Zm240-320q33 0 56.5-23.5T560-640q0-33-23.5-56.5T480-720q-33 0-56.5 23.5T400-640q0 33 23.5 56.5T480-560Zm0-80Zm0 400Z" />
+    </group>
 </vector>

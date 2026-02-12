@@ -1,9 +1,11 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:fillColor="@color/titleTextColor"
-        android:pathData="M5,21V5Q5,4.175 5.588,3.587Q6.175,3 7,3H17Q17.825,3 18.413,3.587Q19,4.175 19,5V21L12,18Z" />
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <group android:translateX="0" android:translateY="960.0">
+        <path
+            android:fillColor="@color/titleTextColor"
+            android:pathData="M200-120v-640q0-33 23.5-56.5T280-840h400q33 0 56.5 23.5T760-760v640L480-240 200-120Zm80-122 200-86 200 86v-518H280v518Zm0-518h400-400Z" />
+    </group>
 </vector>

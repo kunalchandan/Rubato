@@ -6,7 +6,6 @@ import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 
 import one.chandan.rubato.interfaces.StarCallback;
-import one.chandan.rubato.repository.ArtistRepository;
 import one.chandan.rubato.repository.FavoriteRepository;
 import one.chandan.rubato.subsonic.models.ArtistID3;
 import one.chandan.rubato.util.NetworkUtil;
@@ -14,7 +13,6 @@ import one.chandan.rubato.util.NetworkUtil;
 import java.util.Date;
 
 public class ArtistBottomSheetViewModel extends AndroidViewModel {
-    private final ArtistRepository artistRepository;
     private final FavoriteRepository favoriteRepository;
 
     private ArtistID3 artist;
@@ -22,7 +20,6 @@ public class ArtistBottomSheetViewModel extends AndroidViewModel {
     public ArtistBottomSheetViewModel(@NonNull Application application) {
         super(application);
 
-        artistRepository = new ArtistRepository();
         favoriteRepository = new FavoriteRepository();
     }
 

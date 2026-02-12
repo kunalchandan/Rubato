@@ -8,24 +8,27 @@ import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
-import one.chandan.rubato.repository.SongRepository;
+import one.chandan.rubato.repository.LibraryRepository;
 import one.chandan.rubato.subsonic.models.Child;
+import one.chandan.rubato.util.CollectionUtil;
 
+import java.util.Collections;
 import java.util.List;
 
 public class StarredSyncViewModel extends AndroidViewModel {
-    private final SongRepository songRepository;
+    private final LibraryRepository libraryRepository;
 
-    private final MutableLiveData<List<Child>> starredTracks = new MutableLiveData<>(null);
+    private final MutableLiveData<List<Child>> starredTracks = new MutableLiveData<>(Collections.emptyList());
 
     public StarredSyncViewModel(@NonNull Application application) {
         super(application);
 
-        songRepository = new SongRepository();
+        libraryRepository = new LibraryRepository();
     }
 
     public LiveData<List<Child>> getStarredTracks(LifecycleOwner owner) {
-        songRepository.getStarredSongs(false, -1).observe(owner, starredTracks::postValue);
+        libraryRepository.getStarredSongs(false, -1)
+                .observe(owner, items -> starredTracks.postValue(CollectionUtil.arrayListOrEmpty(items)));
         return starredTracks;
     }
 }

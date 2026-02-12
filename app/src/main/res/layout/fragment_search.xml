@@ -40,10 +40,11 @@
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/search_result_artist_recycler_view"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:layout_marginBottom="8dp"
                     android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"
                     android:paddingStart="16dp"
                     android:paddingTop="8dp"
                     android:paddingEnd="8dp"
@@ -71,10 +72,11 @@
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/search_result_album_recycler_view"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:layout_marginBottom="8dp"
                     android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"
                     android:paddingStart="16dp"
                     android:paddingTop="8dp"
                     android:paddingEnd="8dp"
@@ -102,10 +104,11 @@
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/search_result_playlist_recycler_view"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:layout_marginBottom="8dp"
                     android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"
                     android:paddingStart="16dp"
                     android:paddingTop="8dp"
                     android:paddingEnd="8dp"
@@ -133,10 +136,11 @@
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/search_result_tracks_recycler_view"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:layout_marginBottom="8dp"
                     android:clipToPadding="false"
+                    android:nestedScrollingEnabled="false"
                     android:paddingTop="8dp"
                     android:paddingBottom="8dp" />
             </LinearLayout>

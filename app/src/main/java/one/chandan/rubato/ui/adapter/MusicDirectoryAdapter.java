@@ -13,9 +13,10 @@ import one.chandan.rubato.databinding.ItemLibraryMusicDirectoryBinding;
 import one.chandan.rubato.glide.CustomGlideRequest;
 import one.chandan.rubato.interfaces.ClickCallback;
 import one.chandan.rubato.subsonic.models.Child;
+import one.chandan.rubato.repository.LocalMusicRepository;
 import one.chandan.rubato.util.Constants;
 import one.chandan.rubato.util.DownloadUtil;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,7 +44,8 @@ public class MusicDirectoryAdapter extends RecyclerView.Adapter<MusicDirectoryAd
     public void onBindViewHolder(ViewHolder holder, int position) {
         Child child = children.get(position);
         boolean isDownloaded = child.isDir() || DownloadUtil.getDownloadTracker(holder.itemView.getContext()).isDownloaded(child.getId());
-        boolean offlineUnavailable = !child.isDir() && NetworkUtil.isOffline() && !isDownloaded;
+        boolean isLocal = LocalMusicRepository.isLocalSong(child);
+        boolean offlineUnavailable = !child.isDir() && OfflinePolicy.isOffline() && !isDownloaded && !isLocal;
 
         holder.item.musicDirectoryTitleTextView.setText(child.getTitle());
 

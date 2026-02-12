@@ -3,7 +3,6 @@ package one.chandan.rubato.ui.fragment;
 import android.os.Bundle;
 import android.content.Intent;
 import android.net.Uri;
-import android.graphics.Rect;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -11,13 +10,12 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
-import android.widget.FrameLayout;
+import android.util.Log;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.media3.common.util.UnstableApi;
@@ -36,9 +34,12 @@ import one.chandan.rubato.repository.SystemRepository;
 import one.chandan.rubato.ui.activity.MainActivity;
 import one.chandan.rubato.ui.dialog.ServerSignupDialog;
 import one.chandan.rubato.ui.dialog.JellyfinServerDialog;
-import one.chandan.rubato.ui.view.CoachmarkOverlayView;
+import one.chandan.rubato.util.LocalMusicPermissions;
 import one.chandan.rubato.util.LocalSourceUtil;
+import one.chandan.rubato.util.MetadataSyncManager;
 import one.chandan.rubato.util.Preferences;
+import one.chandan.rubato.util.TelemetryLogger;
+import one.chandan.rubato.util.AppExecutors;
 import one.chandan.rubato.viewmodel.LocalSourceViewModel;
 import one.chandan.rubato.viewmodel.LoginViewModel;
 
@@ -53,27 +54,74 @@ public class LoginFragment extends Fragment implements ClickCallback {
 
     private ServerAdapter serverAdapter;
     private ActivityResultLauncher<Uri> localFolderPicker;
+    private ActivityResultLauncher<String[]> audioPermissionLauncher;
+    private boolean pendingLocalSourceNav = false;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
 
+        audioPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestMultiplePermissions(),
+                result -> {
+                    boolean granted = false;
+                    for (Boolean value : result.values()) {
+                        if (Boolean.TRUE.equals(value)) {
+                            granted = true;
+                            break;
+                        }
+                    }
+
+                    TelemetryLogger.logEvent("Login", "local_source_audio_permission_result", granted ? "granted" : "denied", 0L, TelemetryLogger.SOURCE_UI, null);
+                    if (granted) {
+                        LocalMusicRepository.invalidateCache();
+                    } else if (getActivity() != null) {
+                        Toast.makeText(requireContext(), R.string.settings_local_music_permission_required, Toast.LENGTH_SHORT).show();
+                    }
+
+                    if (pendingLocalSourceNav) {
+                        pendingLocalSourceNav = false;
+                        if (activity != null) {
+                            activity.goFromLogin();
+                            TelemetryLogger.logEvent("Login", "local_source_navigate_home", "permission_result", 0L, TelemetryLogger.SOURCE_UI, null);
+                        }
+                    }
+                });
+
         localFolderPicker = registerForActivityResult(
                 new ActivityResultContracts.OpenDocumentTree(),
                 uri -> {
+                    TelemetryLogger.logEvent("Login", "local_source_picker_result", uri != null ? "ok" : "cancel", 0L, TelemetryLogger.SOURCE_UI, null);
+                    Log.d(TAG, "local_source_picker_result uri=" + uri);
                     if (uri == null) return;
-                    int flags = Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION;
+                    int flags = Intent.FLAG_GRANT_READ_URI_PERMISSION;
                     try {
                         requireContext().getContentResolver().takePersistableUriPermission(uri, flags);
-                    } catch (SecurityException ignored) {
+                        TelemetryLogger.logEvent("Login", "local_source_permission", "granted", 0L, TelemetryLogger.SOURCE_UI, null);
+                    } catch (SecurityException | IllegalArgumentException ex) {
+                        TelemetryLogger.logEvent("Login", "local_source_permission", "failed", 0L, TelemetryLogger.SOURCE_UI, ex.getMessage());
+                        Log.w(TAG, "Failed to persist local source permission", ex);
                     }
 
                     if (localSourceViewModel == null) {
                         localSourceViewModel = new ViewModelProvider(requireActivity()).get(LocalSourceViewModel.class);
                     }
                     LocalSource source = LocalSourceUtil.buildLocalSource(requireContext(), uri);
-                    localSourceViewModel.addSource(source);
+                    if (source != null) {
+                        Preferences.setLocalMusicEnabled(true);
+                        localSourceViewModel.addSource(source);
+                        TelemetryLogger.logEvent("Login", "local_source_added", "id=" + source.getId(), 0L, TelemetryLogger.SOURCE_UI, null);
+                        Log.d(TAG, "local_source_added id=" + source.getId() + " path=" + source.getRelativePath());
+                        if (!LocalMusicPermissions.hasReadPermission(requireContext())) {
+                            pendingLocalSourceNav = true;
+                            TelemetryLogger.logEvent("Login", "local_source_audio_permission_request", null, 0L, TelemetryLogger.SOURCE_UI, null);
+                            audioPermissionLauncher.launch(LocalMusicPermissions.getReadPermissions());
+                        } else if (activity != null) {
+                            activity.goFromLogin();
+                            TelemetryLogger.logEvent("Login", "local_source_navigate_home", "goFromLogin", 0L, TelemetryLogger.SOURCE_UI, null);
+                        }
+                    }
                     LocalMusicRepository.invalidateCache();
                 }
         );
@@ -83,9 +131,6 @@ public class LoginFragment extends Fragment implements ClickCallback {
     public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
         super.onCreateOptionsMenu(menu, inflater);
         inflater.inflate(R.menu.login_page_menu, menu);
-        if (bind != null) {
-            bind.toolbar.post(this::maybeShowAddServerCoachmark);
-        }
     }
 
     @Nullable
@@ -113,14 +158,7 @@ public class LoginFragment extends Fragment implements ClickCallback {
 
     private void initAppBar() {
         activity.setSupportActionBar(bind.toolbar);
-
-        bind.appBarLayout.addOnOffsetChangedListener((appBarLayout, verticalOffset) -> {
-            if ((bind.serverInfoSector.getHeight() + verticalOffset) < (2 * ViewCompat.getMinimumHeight(bind.toolbar))) {
-                bind.toolbar.setTitle(R.string.login_title);
-            } else {
-                bind.toolbar.setTitle(R.string.empty_string);
-            }
-        });
+        bind.toolbar.setTitle(R.string.login_sources_title);
     }
 
     private void initServerListView() {
@@ -133,18 +171,10 @@ public class LoginFragment extends Fragment implements ClickCallback {
             if (!servers.isEmpty()) {
                 if (bind != null) bind.noServerSourcesContainer.setVisibility(View.GONE);
                 if (bind != null) bind.serverListRecyclerView.setVisibility(View.VISIBLE);
-                if (bind != null) {
-                    bind.appBarLayout.setVisibility(View.VISIBLE);
-                    bind.toolbar.setTitle(R.string.login_title);
-                }
                 serverAdapter.setItems(servers);
             } else {
                 if (bind != null) bind.noServerSourcesContainer.setVisibility(View.VISIBLE);
                 if (bind != null) bind.serverListRecyclerView.setVisibility(View.GONE);
-                if (bind != null) {
-                    bind.appBarLayout.setVisibility(View.GONE);
-                    bind.toolbar.setTitle(R.string.empty_string);
-                }
             }
         });
     }
@@ -160,7 +190,11 @@ public class LoginFragment extends Fragment implements ClickCallback {
             dialog.show(activity.getSupportFragmentManager(), null);
         });
 
-        bind.loginAddLocalButton.setOnClickListener(v -> localFolderPicker.launch(null));
+        bind.loginAddLocalButton.setOnClickListener(v -> {
+            TelemetryLogger.logEvent("Login", "local_source_picker_launch", null, 0L, TelemetryLogger.SOURCE_UI, null);
+            Log.d(TAG, "local_source_picker_launch");
+            localFolderPicker.launch(null);
+        });
 
         View.OnClickListener openGithub = v -> {
             String url = getString(R.string.settings_github_link);
@@ -171,57 +205,8 @@ public class LoginFragment extends Fragment implements ClickCallback {
         bind.loginRequestSourceButton.setOnClickListener(openGithub);
     }
 
-    private void maybeShowAddServerCoachmark() {
-        if (bind == null || activity == null) return;
-        if (!Preferences.isCoachmarkAddServerPending()) return;
-
-        View addButtonView = bind.toolbar.findViewById(R.id.action_add);
-        if (addButtonView == null || addButtonView.getWidth() == 0) {
-            bind.toolbar.postDelayed(this::maybeShowAddServerCoachmark, 120);
-            return;
-        }
-
-        FrameLayout container = activity.findViewById(R.id.coachmark_container);
-        if (container == null) return;
-
-        int[] targetLoc = new int[2];
-        int[] containerLoc = new int[2];
-        addButtonView.getLocationInWindow(targetLoc);
-        container.getLocationInWindow(containerLoc);
-
-        Rect rect = new Rect(
-                targetLoc[0] - containerLoc[0],
-                targetLoc[1] - containerLoc[1],
-                targetLoc[0] - containerLoc[0] + addButtonView.getWidth(),
-                targetLoc[1] - containerLoc[1] + addButtonView.getHeight()
-        );
-
-        container.removeAllViews();
-        CoachmarkOverlayView overlay = new CoachmarkOverlayView(requireContext());
-        overlay.setClickable(true);
-        overlay.setLabel(getString(R.string.onboarding_server_hint));
-        overlay.setTargetRect(rect);
-        overlay.setOnClickListener(v -> {
-            container.removeAllViews();
-            container.setVisibility(View.GONE);
-            Preferences.setCoachmarkAddServerPending(false);
-        });
-
-        container.addView(overlay, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-        ));
-        container.setVisibility(View.VISIBLE);
-    }
-
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        if (item.getItemId() == R.id.action_add) {
-            ServerSignupDialog dialog = new ServerSignupDialog();
-            dialog.show(activity.getSupportFragmentManager(), null);
-            return true;
-        }
-
         return false;
     }
 
@@ -241,6 +226,7 @@ public class LoginFragment extends Fragment implements ClickCallback {
 
             @Override
             public void onSuccess(String password, String token, String salt) {
+                triggerMetadataSync();
                 activity.goFromLogin();
             }
         });
@@ -274,5 +260,11 @@ public class LoginFragment extends Fragment implements ClickCallback {
         Preferences.setLowSecurity(false);
 
         App.getSubsonicClientInstance(true);
+    }
+
+    private void triggerMetadataSync() {
+        if (getContext() == null) return;
+        final android.content.Context appContext = getContext().getApplicationContext();
+        AppExecutors.io().execute(() -> MetadataSyncManager.runSyncNow(appContext, false));
     }
 }

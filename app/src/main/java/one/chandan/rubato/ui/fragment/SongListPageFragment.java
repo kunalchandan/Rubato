@@ -31,7 +31,6 @@ import one.chandan.rubato.databinding.FragmentSongListPageBinding;
 import one.chandan.rubato.helper.recyclerview.PaginationScrollListener;
 import one.chandan.rubato.helper.recyclerview.QueueSwipeHelper;
 import one.chandan.rubato.interfaces.ClickCallback;
-import one.chandan.rubato.repository.LocalMusicRepository;
 import one.chandan.rubato.service.MediaManager;
 import one.chandan.rubato.service.MediaService;
 import one.chandan.rubato.subsonic.models.Child;
@@ -39,10 +38,8 @@ import one.chandan.rubato.subsonic.models.Genre;
 import one.chandan.rubato.ui.activity.MainActivity;
 import one.chandan.rubato.ui.adapter.SongHorizontalAdapter;
 import one.chandan.rubato.util.Constants;
-import one.chandan.rubato.util.DownloadUtil;
 import one.chandan.rubato.util.FavoriteUtil;
-import one.chandan.rubato.util.NetworkUtil;
-import one.chandan.rubato.util.OfflineMediaUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.viewmodel.SongListPageViewModel;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.chip.Chip;
@@ -174,7 +171,7 @@ public class SongListPageFragment extends Fragment implements ClickCallback {
         if (bind != null)
             bind.appBarLayout.addOnOffsetChangedListener((appBarLayout, verticalOffset) -> {
                 if ((bind.albumInfoSector.getHeight() + verticalOffset) < (2 * ViewCompat.getMinimumHeight(bind.toolbar))) {
-                    bind.toolbar.setTitle(songListPageViewModel.toolbarTitle);
+                    bind.toolbar.setTitle(getString(R.string.toolbar_song_title_format, songListPageViewModel.toolbarTitle));
                 } else {
                     bind.toolbar.setTitle(R.string.empty_string);
                 }
@@ -187,9 +184,9 @@ public class SongListPageFragment extends Fragment implements ClickCallback {
                 setSongListPageSorter();
 
                 bind.songListShuffleImageView.setOnClickListener(v -> {
-                    List<Child> playable = OfflineMediaUtil.filterPlayable(requireContext(), songs);
+                    List<Child> playable = OfflinePolicy.filterPlayable(requireContext(), songs);
                     if (playable.isEmpty()) {
-                        if (NetworkUtil.isOffline()) {
+                        if (OfflinePolicy.isOffline()) {
                             Snackbar.make(bind.getRoot(), getString(R.string.queue_add_next_unavailable_offline), Snackbar.LENGTH_SHORT).show();
                         }
                         return;
@@ -199,7 +196,7 @@ public class SongListPageFragment extends Fragment implements ClickCallback {
                     MediaManager.startQueue(mediaBrowserListenableFuture, shuffled.subList(0, Math.min(25, shuffled.size())), 0);
                     activity.setBottomSheetInPeek(true);
                 });
-                boolean hasPlayable = OfflineMediaUtil.hasPlayable(requireContext(), songs);
+                boolean hasPlayable = OfflinePolicy.hasPlayable(requireContext(), songs);
                 bind.songListShuffleImageView.setEnabled(hasPlayable);
                 bind.songListShuffleImageView.setAlpha(hasPlayable ? 1f : 0.4f);
             }
@@ -211,6 +208,7 @@ public class SongListPageFragment extends Fragment implements ClickCallback {
             if (bind != null) {
                 bind.relatedGenresLabel.setVisibility(View.GONE);
                 bind.relatedGenresGroup.setVisibility(View.GONE);
+                refreshAppBarLayout();
             }
             return;
         }
@@ -221,6 +219,7 @@ public class SongListPageFragment extends Fragment implements ClickCallback {
             if (genres == null || genres.isEmpty()) {
                 bind.relatedGenresLabel.setVisibility(View.GONE);
                 bind.relatedGenresGroup.setVisibility(View.GONE);
+                refreshAppBarLayout();
                 return;
             }
 
@@ -240,6 +239,15 @@ public class SongListPageFragment extends Fragment implements ClickCallback {
 
             bind.relatedGenresLabel.setVisibility(View.VISIBLE);
             bind.relatedGenresGroup.setVisibility(View.VISIBLE);
+            refreshAppBarLayout();
+        });
+    }
+
+    private void refreshAppBarLayout() {
+        if (bind == null) return;
+        bind.appBarLayout.post(() -> {
+            bind.appBarLayout.requestLayout();
+            bind.appBarLayout.invalidate();
         });
     }
 
@@ -262,9 +270,7 @@ public class SongListPageFragment extends Fragment implements ClickCallback {
                 if (action == QueueSwipeHelper.SwipeAction.TOGGLE_FAVORITE) {
                     return true;
                 }
-                boolean isLocal = LocalMusicRepository.isLocalSong(song);
-                boolean isDownloaded = isLocal || DownloadUtil.getDownloadTracker(requireContext()).isDownloaded(song.getId());
-                return !NetworkUtil.isOffline() || isDownloaded;
+                return OfflinePolicy.canQueue(requireContext(), song);
             }
 
             @Override

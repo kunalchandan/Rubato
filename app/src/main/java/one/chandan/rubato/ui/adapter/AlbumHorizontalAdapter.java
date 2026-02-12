@@ -10,6 +10,7 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
+import one.chandan.rubato.R;
 import one.chandan.rubato.databinding.ItemHorizontalAlbumBinding;
 import one.chandan.rubato.glide.CustomGlideRequest;
 import one.chandan.rubato.interfaces.ClickCallback;
@@ -38,13 +39,15 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
             List<AlbumID3> filteredList = new ArrayList<>();
 
             if (constraint == null || constraint.length() == 0) {
+                currentFilter = "";
                 filteredList.addAll(albumsFull);
             } else {
                 String filterPattern = constraint.toString().toLowerCase().trim();
                 currentFilter = filterPattern;
 
                 for (AlbumID3 item : albumsFull) {
-                    if (item.getName().toLowerCase().contains(filterPattern)) {
+                    String name = item.getName();
+                    if (name != null && name.toLowerCase().contains(filterPattern)) {
                         filteredList.add(item);
                     }
                 }
@@ -58,10 +61,13 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
 
         @Override
         protected void publishResults(CharSequence constraint, FilterResults results) {
+            String expected = currentFilter == null ? "" : currentFilter;
+            String incoming = constraint == null ? "" : constraint.toString();
+            if (!incoming.equals(expected)) {
+                return;
+            }
             List<AlbumID3> next = results.values == null ? Collections.emptyList() : (List<AlbumID3>) results.values;
-            DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new AlbumDiffCallback(albums, next));
-            albums = next;
-            diffResult.dispatchUpdatesTo(AlbumHorizontalAdapter.this);
+            applyItems(next);
         }
     };
 
@@ -95,13 +101,22 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
     }
 
     @Override
+    public int getItemViewType(int position) {
+        return R.layout.item_horizontal_album;
+    }
+
+    @Override
     public int getItemCount() {
         return albums.size();
     }
 
     public void setItems(List<AlbumID3> albums) {
-        this.albumsFull = albums != null ? albums : Collections.emptyList();
-        filtering.filter(currentFilter);
+        this.albumsFull = albums != null ? new ArrayList<>(albums) : Collections.emptyList();
+        if (currentFilter == null || currentFilter.isEmpty()) {
+            applyItems(this.albumsFull);
+        } else {
+            filtering.filter(currentFilter);
+        }
     }
 
     @Override
@@ -128,6 +143,13 @@ public class AlbumHorizontalAdapter extends RecyclerView.Adapter<AlbumHorizontal
 
     public AlbumID3 getItem(int id) {
         return albums.get(id);
+    }
+
+    private void applyItems(List<AlbumID3> next) {
+        List<AlbumID3> safeNext = next == null ? Collections.emptyList() : new ArrayList<>(next);
+        DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new AlbumDiffCallback(albums, safeNext));
+        albums = safeNext;
+        diffResult.dispatchUpdatesTo(this);
     }
 
     private static class AlbumDiffCallback extends DiffUtil.Callback {

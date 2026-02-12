@@ -12,11 +12,9 @@ import androidx.media3.common.util.UnstableApi;
 
 import one.chandan.rubato.interfaces.StarCallback;
 import one.chandan.rubato.model.Download;
-import one.chandan.rubato.repository.AlbumRepository;
-import one.chandan.rubato.repository.ArtistRepository;
 import one.chandan.rubato.repository.FavoriteRepository;
+import one.chandan.rubato.repository.LibraryRepository;
 import one.chandan.rubato.repository.SharingRepository;
-import one.chandan.rubato.repository.SongRepository;
 import one.chandan.rubato.subsonic.models.AlbumID3;
 import one.chandan.rubato.subsonic.models.ArtistID3;
 import one.chandan.rubato.subsonic.models.Child;
@@ -25,6 +23,7 @@ import one.chandan.rubato.util.DownloadUtil;
 import one.chandan.rubato.util.MappingUtil;
 import one.chandan.rubato.util.NetworkUtil;
 import one.chandan.rubato.util.Preferences;
+import one.chandan.rubato.util.CollectionUtil;
 
 import java.util.Collections;
 import java.util.Date;
@@ -32,22 +31,18 @@ import java.util.List;
 
 @UnstableApi
 public class SongBottomSheetViewModel extends AndroidViewModel {
-    private final SongRepository songRepository;
-    private final AlbumRepository albumRepository;
-    private final ArtistRepository artistRepository;
+    private final LibraryRepository libraryRepository;
     private final FavoriteRepository favoriteRepository;
     private final SharingRepository sharingRepository;
 
     private Child song;
 
-    private final MutableLiveData<List<Child>> instantMix = new MutableLiveData<>(null);
+    private final MutableLiveData<List<Child>> instantMix = new MutableLiveData<>(Collections.emptyList());
 
     public SongBottomSheetViewModel(@NonNull Application application) {
         super(application);
 
-        songRepository = new SongRepository();
-        albumRepository = new AlbumRepository();
-        artistRepository = new ArtistRepository();
+        libraryRepository = new LibraryRepository();
         favoriteRepository = new FavoriteRepository();
         sharingRepository = new SharingRepository();
     }
@@ -118,17 +113,18 @@ public class SongBottomSheetViewModel extends AndroidViewModel {
     }
 
     public LiveData<AlbumID3> getAlbum() {
-        return albumRepository.getAlbum(song.getAlbumId());
+        return libraryRepository.getAlbum(song.getAlbumId());
     }
 
     public LiveData<ArtistID3> getArtist() {
-        return artistRepository.getArtist(song.getArtistId());
+        return libraryRepository.getArtistInfo(song.getArtistId());
     }
 
     public LiveData<List<Child>> getInstantMix(LifecycleOwner owner, Child media) {
         instantMix.setValue(Collections.emptyList());
 
-        songRepository.getInstantMix(media.getId(), 20).observe(owner, instantMix::postValue);
+        libraryRepository.getSongInstantMix(media.getId(), 20)
+                .observe(owner, items -> instantMix.postValue(CollectionUtil.arrayListOrEmpty(items)));
 
         return instantMix;
     }

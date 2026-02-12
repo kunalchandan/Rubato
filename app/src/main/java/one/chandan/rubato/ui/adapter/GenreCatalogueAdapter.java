@@ -33,7 +33,11 @@ public class GenreCatalogueAdapter extends RecyclerView.Adapter<GenreCatalogueAd
                 String filterPattern = constraint.toString().toLowerCase().trim();
 
                 for (Genre item : genresFull) {
-                    if (item.getGenre().toLowerCase().contains(filterPattern)) {
+                    if (item == null) {
+                        continue;
+                    }
+                    String name = item.getGenre();
+                    if (name != null && name.toLowerCase().contains(filterPattern)) {
                         filteredList.add(item);
                     }
                 }
@@ -48,7 +52,9 @@ public class GenreCatalogueAdapter extends RecyclerView.Adapter<GenreCatalogueAd
         @Override
         protected void publishResults(CharSequence constraint, FilterResults results) {
             genres.clear();
-            if (results.count > 0) genres.addAll((List) results.values);
+            if (results != null && results.values instanceof List) {
+                genres.addAll((List) results.values);
+            }
             notifyDataSetChanged();
         }
     };
@@ -58,7 +64,8 @@ public class GenreCatalogueAdapter extends RecyclerView.Adapter<GenreCatalogueAd
 
     public GenreCatalogueAdapter(ClickCallback click) {
         this.click = click;
-        this.genres = Collections.emptyList();
+        this.genres = new ArrayList<>();
+        this.genresFull = new ArrayList<>();
     }
 
     @NonNull
@@ -70,9 +77,16 @@ public class GenreCatalogueAdapter extends RecyclerView.Adapter<GenreCatalogueAd
 
     @Override
     public void onBindViewHolder(ViewHolder holder, int position) {
+        if (position < 0 || position >= genres.size()) {
+            return;
+        }
         Genre genre = genres.get(position);
-
-        holder.item.genreLabel.setText(genre.getGenre());
+        if (genre == null) {
+            holder.item.genreLabel.setText("");
+            return;
+        }
+        String name = genre.getGenre();
+        holder.item.genreLabel.setText(name == null ? "" : name);
     }
 
     @Override
@@ -85,8 +99,9 @@ public class GenreCatalogueAdapter extends RecyclerView.Adapter<GenreCatalogueAd
     }
 
     public void setItems(List<Genre> genres) {
-        this.genres = genres;
-        this.genresFull = new ArrayList<>(genres);
+        List<Genre> safe = genres != null ? genres : Collections.emptyList();
+        this.genres = new ArrayList<>(safe);
+        this.genresFull = new ArrayList<>(safe);
         notifyDataSetChanged();
     }
 
@@ -104,9 +119,13 @@ public class GenreCatalogueAdapter extends RecyclerView.Adapter<GenreCatalogueAd
             this.item = item;
 
             itemView.setOnClickListener(v -> {
+                int position = getBindingAdapterPosition();
+                if (position == RecyclerView.NO_POSITION || position >= genres.size()) {
+                    return;
+                }
                 Bundle bundle = new Bundle();
                 bundle.putString(Constants.MEDIA_BY_GENRE, Constants.MEDIA_BY_GENRE);
-                bundle.putParcelable(Constants.GENRE_OBJECT, genres.get(getBindingAdapterPosition()));
+                bundle.putParcelable(Constants.GENRE_OBJECT, genres.get(position));
 
                 click.onGenreClick(bundle);
             });
@@ -116,9 +135,9 @@ public class GenreCatalogueAdapter extends RecyclerView.Adapter<GenreCatalogueAd
     public void sort(String order) {
         switch (order) {
             case Constants.GENRE_ORDER_BY_NAME:
-                genres.sort(Comparator.comparing(Genre::getGenre));
+                genres.sort(Comparator.comparing(genre -> genre.getGenre() == null ? "" : genre.getGenre()));
                 if (genresFull != null) {
-                    genresFull.sort(Comparator.comparing(Genre::getGenre));
+                    genresFull.sort(Comparator.comparing(genre -> genre.getGenre() == null ? "" : genre.getGenre()));
                 }
                 break;
             case Constants.GENRE_ORDER_BY_RANDOM:
@@ -128,9 +147,9 @@ public class GenreCatalogueAdapter extends RecyclerView.Adapter<GenreCatalogueAd
                 }
                 break;
             case Constants.GENRE_ORDER_BY_MOST_SONGS:
-                genres.sort(Comparator.comparingInt(Genre::getSongCount).reversed());
+                genres.sort(Comparator.comparingInt((Genre genre) -> genre == null ? 0 : genre.getSongCount()).reversed());
                 if (genresFull != null) {
-                    genresFull.sort(Comparator.comparingInt(Genre::getSongCount).reversed());
+                    genresFull.sort(Comparator.comparingInt((Genre genre) -> genre == null ? 0 : genre.getSongCount()).reversed());
                 }
                 break;
         }

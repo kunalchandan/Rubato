@@ -20,7 +20,7 @@
             android:contentDescription="@string/widget_cover_description"
             android:outlineProvider="background"
             android:scaleType="centerCrop"
-            android:src="@drawable/ic_splash_logo_rubato" />
+            android:src="@drawable/ic_rubato_logo" />
 
         <ImageView
             android:id="@+id/widget_circle_favorite"

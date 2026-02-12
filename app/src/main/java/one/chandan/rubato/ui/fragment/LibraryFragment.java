@@ -2,6 +2,7 @@ package one.chandan.rubato.ui.fragment;
 
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -30,11 +31,15 @@ import one.chandan.rubato.ui.adapter.GenreAdapter;
 import one.chandan.rubato.ui.adapter.MusicFolderAdapter;
 import one.chandan.rubato.ui.adapter.PlaylistHorizontalAdapter;
 import one.chandan.rubato.ui.dialog.PlaylistEditorDialog;
+import one.chandan.rubato.model.LibrarySourceItem;
+import one.chandan.rubato.model.LocalSource;
+import one.chandan.rubato.repository.DirectoryRepository;
 import one.chandan.rubato.subsonic.models.Playlist;
 import one.chandan.rubato.util.Constants;
-import one.chandan.rubato.util.NetworkUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 import one.chandan.rubato.util.Preferences;
 import one.chandan.rubato.util.TelemetryLogger;
+import one.chandan.rubato.sync.SyncOrchestrator;
 import one.chandan.rubato.viewmodel.LibraryViewModel;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.snackbar.Snackbar;
@@ -66,6 +71,9 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     private MaterialToolbar materialToolbar;
     private long renderStartMs = 0L;
     private boolean renderLogged = false;
+    private final Handler syncHandler = new Handler(Looper.getMainLooper());
+    private Runnable syncRefreshRunnable;
+    private long lastSyncRefreshMs = 0L;
 
     @Nullable
     @Override
@@ -93,6 +101,9 @@ public class LibraryFragment extends Fragment implements ClickCallback {
         initArtistView();
         initGenreView();
         initPlaylistView();
+        bindUiState();
+        bindSyncState();
+        restoreScrollPosition();
     }
 
     @Override
@@ -104,13 +115,22 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     @Override
     public void onResume() {
         super.onResume();
-        refreshPlaylistView();
         TelemetryLogger.logEvent("Library", "screen_view", null, 0);
+    }
+
+    @Override
+    public void onStop() {
+        persistScrollPosition();
+        super.onStop();
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        if (syncRefreshRunnable != null) {
+            syncHandler.removeCallbacks(syncRefreshRunnable);
+            syncRefreshRunnable = null;
+        }
         bind = null;
     }
 
@@ -146,6 +166,26 @@ public class LibraryFragment extends Fragment implements ClickCallback {
         });
     }
 
+    private void restoreScrollPosition() {
+        if (bind == null || libraryViewModel == null) {
+            return;
+        }
+        int scrollY = libraryViewModel.getLibraryScrollY();
+        if (scrollY <= 0) {
+            return;
+        }
+        bind.fragmentLibraryNestedScrollView.post(() ->
+                bind.fragmentLibraryNestedScrollView.scrollTo(0, scrollY)
+        );
+    }
+
+    private void persistScrollPosition() {
+        if (bind == null || libraryViewModel == null) {
+            return;
+        }
+        libraryViewModel.setLibraryScrollY(bind.fragmentLibraryNestedScrollView.getScrollY());
+    }
+
     private void initAppBar() {
         materialToolbar = bind.getRoot().findViewById(R.id.toolbar);
 
@@ -166,17 +206,6 @@ public class LibraryFragment extends Fragment implements ClickCallback {
 
         musicFolderAdapter = new MusicFolderAdapter(this);
         bind.musicFolderRecyclerView.setAdapter(musicFolderAdapter);
-        libraryViewModel.getLibrarySources(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), sources -> {
-            if (sources == null) {
-                if (bind != null) bind.libraryMusicFolderSector.setVisibility(View.GONE);
-            } else {
-                if (bind != null)
-                    bind.libraryMusicFolderSector.setVisibility(!sources.isEmpty() ? View.VISIBLE : View.GONE);
-
-                musicFolderAdapter.setItems(sources);
-                logRenderOnce("music_folders");
-            }
-        });
     }
 
     private void initAlbumView() {
@@ -188,17 +217,6 @@ public class LibraryFragment extends Fragment implements ClickCallback {
 
         albumAdapter = new AlbumAdapter(this);
         bind.albumRecyclerView.setAdapter(albumAdapter);
-        libraryViewModel.getAlbumSample(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), albums -> {
-            if (albums == null) {
-                if (bind != null) bind.libraryAlbumSector.setVisibility(View.GONE);
-            } else {
-                if (bind != null)
-                    bind.libraryAlbumSector.setVisibility(!albums.isEmpty() ? View.VISIBLE : View.GONE);
-
-                albumAdapter.setItems(albums);
-                logRenderOnce("albums");
-            }
-        });
 
         CustomLinearSnapHelper albumSnapHelper = new CustomLinearSnapHelper();
         albumSnapHelper.attachToRecyclerView(bind.albumRecyclerView);
@@ -213,17 +231,6 @@ public class LibraryFragment extends Fragment implements ClickCallback {
 
         artistAdapter = new ArtistAdapter(this, false, false);
         bind.artistRecyclerView.setAdapter(artistAdapter);
-        libraryViewModel.getArtistSample(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), artists -> {
-            if (artists == null) {
-                if (bind != null) bind.libraryArtistSector.setVisibility(View.GONE);
-            } else {
-                if (bind != null)
-                    bind.libraryArtistSector.setVisibility(!artists.isEmpty() ? View.VISIBLE : View.GONE);
-
-                artistAdapter.setItems(artists);
-                logRenderOnce("artists");
-            }
-        });
 
         CustomLinearSnapHelper artistSnapHelper = new CustomLinearSnapHelper();
         artistSnapHelper.attachToRecyclerView(bind.artistRecyclerView);
@@ -237,18 +244,6 @@ public class LibraryFragment extends Fragment implements ClickCallback {
 
         genreAdapter = new GenreAdapter(this);
         bind.genreRecyclerView.setAdapter(genreAdapter);
-
-        libraryViewModel.getGenreSample(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), genres -> {
-            if (genres == null) {
-                if (bind != null) bind.libraryGenresSector.setVisibility(View.GONE);
-            } else {
-                if (bind != null)
-                    bind.libraryGenresSector.setVisibility(!genres.isEmpty() ? View.VISIBLE : View.GONE);
-
-                genreAdapter.setItems(genres);
-                logRenderOnce("genres");
-            }
-        });
 
         CustomLinearSnapHelper genreSnapHelper = new CustomLinearSnapHelper();
         genreSnapHelper.attachToRecyclerView(bind.genreRecyclerView);
@@ -264,24 +259,110 @@ public class LibraryFragment extends Fragment implements ClickCallback {
         playlistHorizontalAdapter = new PlaylistHorizontalAdapter(this, false);
         bind.playlistRecyclerView.setAdapter(playlistHorizontalAdapter);
         attachPlaylistReorder();
-        libraryViewModel.getPlaylistSample(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), playlists -> {
-            if (playlists == null) {
-                if (bind != null) bind.libraryPlaylistSector.setVisibility(View.GONE);
-            } else {
-                if (bind != null)
-                    bind.libraryPlaylistSector.setVisibility(!playlists.isEmpty() ? View.VISIBLE : View.GONE);
+    }
 
+    private void bindUiState() {
+        libraryViewModel.getUiState(getViewLifecycleOwner()).observe(getViewLifecycleOwner(), state -> {
+            if (state == null || bind == null) {
+                return;
+            }
+
+            if (!Preferences.isMusicDirectorySectionVisible()) {
+                bind.libraryMusicFolderSector.setVisibility(View.GONE);
+            } else {
+                List<LibrarySourceItem> sources = state.getSources();
+                boolean hasSources = sources != null && !sources.isEmpty();
+                bind.libraryMusicFolderSector.setVisibility(hasSources ? View.VISIBLE : View.GONE);
+                if (musicFolderAdapter != null && sources != null) {
+                    musicFolderAdapter.setItems(sources);
+                }
+                if (hasSources) logRenderOnce("music_folders");
+            }
+
+            List<one.chandan.rubato.subsonic.models.AlbumID3> albums = state.getAlbums();
+            boolean hasAlbums = albums != null && !albums.isEmpty();
+            bind.libraryAlbumSector.setVisibility(hasAlbums ? View.VISIBLE : View.GONE);
+            if (albumAdapter != null && albums != null) {
+                albumAdapter.setItems(albums);
+            }
+            if (hasAlbums) logRenderOnce("albums");
+
+            List<one.chandan.rubato.subsonic.models.ArtistID3> artists = state.getArtists();
+            boolean hasArtists = artists != null && !artists.isEmpty();
+            bind.libraryArtistSector.setVisibility(hasArtists ? View.VISIBLE : View.GONE);
+            if (artistAdapter != null && artists != null) {
+                artistAdapter.setItems(artists);
+            }
+            if (hasArtists) logRenderOnce("artists");
+
+            List<one.chandan.rubato.subsonic.models.Genre> genres = state.getGenres();
+            boolean hasGenres = genres != null && !genres.isEmpty();
+            bind.libraryGenresSector.setVisibility(hasGenres ? View.VISIBLE : View.GONE);
+            if (genreAdapter != null && genres != null) {
+                genreAdapter.setItems(genres);
+            }
+            if (hasGenres) logRenderOnce("genres");
+
+            List<Playlist> playlists = state.getPlaylists();
+            boolean hasPlaylists = playlists != null && !playlists.isEmpty();
+            bind.libraryPlaylistSector.setVisibility(hasPlaylists ? View.VISIBLE : View.GONE);
+            if (playlists != null) {
                 applySavedPlaylistOrder(playlists);
-                logRenderOnce("playlists");
+            }
+            if (hasPlaylists) logRenderOnce("playlists");
+
+            if (!state.getLoading()) {
+                logRenderOnce("ui_state");
             }
         });
+    }
+
+    private void bindSyncState() {
+        SyncOrchestrator.getSyncState().observe(getViewLifecycleOwner(), state -> {
+            if (state == null) {
+                return;
+            }
+            if (state.getActive()) {
+                return;
+            }
+
+            long completedAt = state.getLastCompletedAt();
+            long lastHandled = libraryViewModel != null ? libraryViewModel.getLastSyncCompletedAt() : 0L;
+            if (completedAt > 0 && completedAt != lastHandled) {
+                if (libraryViewModel != null) {
+                    libraryViewModel.setLastSyncCompletedAt(completedAt);
+                }
+                scheduleSyncRefresh();
+            }
+        });
+    }
+
+    private void scheduleSyncRefresh() {
+        if (syncRefreshRunnable != null) {
+            syncHandler.removeCallbacks(syncRefreshRunnable);
+        }
+
+        long now = SystemClock.elapsedRealtime();
+        long minIntervalMs = 1500L;
+        long delay = Math.max(0L, minIntervalMs - (now - lastSyncRefreshMs));
+
+        syncRefreshRunnable = () -> {
+            if (bind == null || libraryViewModel == null) return;
+            lastSyncRefreshMs = SystemClock.elapsedRealtime();
+            libraryViewModel.refreshAlbumSample(getViewLifecycleOwner());
+            libraryViewModel.refreshArtistSample(getViewLifecycleOwner());
+            libraryViewModel.refreshGenreSample(getViewLifecycleOwner());
+            libraryViewModel.refreshPlaylistSample(getViewLifecycleOwner());
+        };
+
+        syncHandler.postDelayed(syncRefreshRunnable, delay);
     }
 
     private void logRenderOnce(String detail) {
         if (renderLogged) return;
         renderLogged = true;
         long duration = Math.max(0, SystemClock.elapsedRealtime() - renderStartMs);
-        TelemetryLogger.logEvent("Library", "render", detail, duration);
+        TelemetryLogger.logEvent("Library", "render", detail, duration, TelemetryLogger.SOURCE_LIST, null);
     }
 
     private void refreshPlaylistView() {
@@ -368,7 +449,7 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     }
 
     private boolean guardOffline(View anchor) {
-        if (!NetworkUtil.isOffline()) {
+        if (!OfflinePolicy.isOffline()) {
             return false;
         }
         if (anchor != null) {
@@ -423,6 +504,13 @@ public class LibraryFragment extends Fragment implements ClickCallback {
     @Override
     public void onMusicFolderClick(Bundle bundle) {
         if (bundle.containsKey(Constants.LOCAL_SOURCE_OBJECT)) {
+            LocalSource source = bundle.getParcelable(Constants.LOCAL_SOURCE_OBJECT);
+            if (source != null) {
+                Bundle dirBundle = new Bundle();
+                dirBundle.putString(Constants.MUSIC_DIRECTORY_ID, DirectoryRepository.buildLocalDirectoryId(source.getTreeUri()));
+                Navigation.findNavController(requireView()).navigate(R.id.directoryFragment, dirBundle);
+                return;
+            }
             activity.navController.navigate(R.id.musicSourcesFragment);
             return;
         }
