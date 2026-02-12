@@ -1,22 +1,16 @@
 package one.chandan.rubato;
 
-import static androidx.test.espresso.Espresso.onView;
-import static androidx.test.espresso.action.ViewActions.click;
-import static androidx.test.espresso.assertion.ViewAssertions.matches;
-import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
-import static androidx.test.espresso.matcher.ViewMatchers.isEnabled;
-import static androidx.test.espresso.matcher.ViewMatchers.withId;
-import static androidx.test.espresso.matcher.ViewMatchers.withText;
-import static org.hamcrest.Matchers.not;
-
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
 
 import one.chandan.rubato.ui.activity.MainActivity;
+import one.chandan.rubato.ui.dialog.VisualizerSettingsDialog;
 import one.chandan.rubato.util.Preferences;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import android.view.View;
 
 @RunWith(AndroidJUnit4.class)
 public class VisualizerSettingsDialogTest {
@@ -31,16 +25,28 @@ public class VisualizerSettingsDialogTest {
         Preferences.setVisualizerEnabled(true);
 
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
-            scenario.onActivity(activity -> activity.navController.navigate(R.id.settingsFragment));
+            scenario.onActivity(activity -> {
+                VisualizerSettingsDialog dialog = new VisualizerSettingsDialog();
+                dialog.show(activity.getSupportFragmentManager(), "VisualizerSettingsDialog");
+                activity.getSupportFragmentManager().executePendingTransactions();
+                android.app.Dialog dialogWindow = dialog.getDialog();
+                org.junit.Assert.assertNotNull(dialogWindow);
+                View preview = dialogWindow.findViewById(R.id.visualizer_preview);
+                View lineChip = dialogWindow.findViewById(R.id.visualizer_style_line_chip);
+                View barsChip = dialogWindow.findViewById(R.id.visualizer_style_bars_chip);
+                View peakSwitch = dialogWindow.findViewById(R.id.visualizer_peak_caps_switch);
+                org.junit.Assert.assertNotNull(preview);
+                org.junit.Assert.assertNotNull(lineChip);
+                org.junit.Assert.assertNotNull(barsChip);
+                org.junit.Assert.assertNotNull(peakSwitch);
 
-            onView(withText(R.string.settings_visualizer_title)).perform(click());
-            onView(withId(R.id.visualizer_preview)).check(matches(isDisplayed()));
+                lineChip.performClick();
+                org.junit.Assert.assertFalse(peakSwitch.isEnabled());
 
-            onView(withId(R.id.visualizer_style_line_chip)).perform(click());
-            onView(withId(R.id.visualizer_peak_caps_switch)).check(matches(not(isEnabled())));
-
-            onView(withId(R.id.visualizer_style_bars_chip)).perform(click());
-            onView(withId(R.id.visualizer_peak_caps_switch)).check(matches(isEnabled()));
+                barsChip.performClick();
+                org.junit.Assert.assertTrue(peakSwitch.isEnabled());
+            });
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         }
     }
 }

@@ -10,6 +10,7 @@ Last updated: 2026-02-12
 - Updated UI flows and resources for unified library/sources, refreshed icons, and improved downloads/search/toolbars.
 - Added collection utilities to simplify safe list handling in viewmodels.
 - Updated build configuration (plugins DSL, lint baseline, ABI splits, WorkManager/security deps).
+- Added/updated automated tests covering genres, local sources, telemetry export, and visualizer settings.
 
 ## Recent updates (2026-02-06)
 - Android Auto: removed the top-level "Made for you" browse page and disabled AA search commands to eliminate the split-screen "For you / What do you want to listen to?" surface.

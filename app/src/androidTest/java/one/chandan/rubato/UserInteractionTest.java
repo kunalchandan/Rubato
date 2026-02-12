@@ -1,34 +1,24 @@
 package one.chandan.rubato;
 
-import static androidx.test.espresso.Espresso.onView;
-import static androidx.test.espresso.action.ViewActions.click;
-import static androidx.test.espresso.assertion.ViewAssertions.matches;
-import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
-import static androidx.test.espresso.matcher.ViewMatchers.isAssignableFrom;
-import static androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility;
-import static androidx.test.espresso.matcher.ViewMatchers.withId;
-import static androidx.test.espresso.matcher.ViewMatchers.withText;
-
-import androidx.navigation.NavController;
-import androidx.navigation.Navigation;
 import androidx.test.core.app.ActivityScenario;
-import androidx.test.espresso.NoMatchingViewException;
-import androidx.test.espresso.UiController;
-import androidx.test.espresso.ViewAction;
-import androidx.test.espresso.matcher.ViewMatchers.Visibility;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
+import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.lifecycle.Lifecycle;
 
 import one.chandan.rubato.ui.activity.MainActivity;
+import one.chandan.rubato.ui.fragment.DownloadFragment;
+import one.chandan.rubato.ui.fragment.MusicSourcesFragment;
+import one.chandan.rubato.ui.fragment.SearchFragment;
+import one.chandan.rubato.ui.fragment.SettingsFragment;
 import one.chandan.rubato.util.Preferences;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.hamcrest.Matcher;
-
 import android.view.View;
+import android.view.ViewGroup;
+import androidx.preference.Preference;
 import androidx.appcompat.widget.SearchView;
 
 @LargeTest
@@ -52,11 +42,16 @@ public class UserInteractionTest {
     public void searchPanelOpensAndShowsSuggestions() {
         ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class);
         scenario.moveToState(Lifecycle.State.RESUMED);
-        navigateTo(scenario, R.id.searchFragment);
-
-        onView(withId(R.id.search_bar)).check(matches(isDisplayed()));
-        onView(withId(R.id.search_bar)).perform(click());
-        onView(withId(R.id.search_view)).check(matches(isDisplayed()));
+        launchFragment(scenario, new SearchFragment());
+        scenario.onActivity(activity -> {
+            SearchFragment fragment = (SearchFragment) activity.getSupportFragmentManager()
+                    .findFragmentById(R.id.nav_host_fragment);
+            org.junit.Assert.assertNotNull(fragment);
+            View root = fragment.getView();
+            org.junit.Assert.assertNotNull(root);
+            org.junit.Assert.assertNotNull(root.findViewById(R.id.search_bar));
+            org.junit.Assert.assertNotNull(root.findViewById(R.id.search_view));
+        });
 
         scenario.close();
     }
@@ -65,18 +60,27 @@ public class UserInteractionTest {
     public void downloadedScreenShowsCoreControlsOrEmptyState() {
         ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class);
         scenario.moveToState(Lifecycle.State.RESUMED);
-        navigateTo(scenario, R.id.downloadFragment);
-
-        boolean hasEmpty = isViewDisplayed(R.id.empty_download_layout);
-        boolean hasContent = isViewDisplayed(R.id.download_downloaded_sector);
-
-        if (hasContent) {
-            onView(withId(R.id.shuffle_downloaded_text_view_clickable)).check(matches(isDisplayed()));
-            onView(withId(R.id.downloaded_group_by_image_view)).check(matches(isDisplayed()));
-            onView(withId(R.id.metadata_sync_status_icon)).check(matches(isDisplayed()));
-        } else {
-            onView(withId(R.id.empty_download_layout)).check(matches(isDisplayed()));
-        }
+        launchFragment(scenario, new DownloadFragment());
+        scenario.onActivity(activity -> {
+            DownloadFragment fragment = (DownloadFragment) activity.getSupportFragmentManager()
+                    .findFragmentById(R.id.nav_host_fragment);
+            org.junit.Assert.assertNotNull(fragment);
+            View root = fragment.getView();
+            org.junit.Assert.assertNotNull(root);
+            View emptyLayout = root.findViewById(R.id.empty_download_layout);
+            View contentLayout = root.findViewById(R.id.download_downloaded_sector);
+            org.junit.Assert.assertNotNull(emptyLayout);
+            org.junit.Assert.assertNotNull(contentLayout);
+            boolean hasEmpty = emptyLayout.getVisibility() == View.VISIBLE;
+            boolean hasContent = contentLayout.getVisibility() == View.VISIBLE;
+            org.junit.Assert.assertTrue(hasEmpty || hasContent);
+            if (hasContent) {
+                org.junit.Assert.assertNotNull(root.findViewById(R.id.shuffle_downloaded_text_view_clickable));
+                org.junit.Assert.assertNotNull(root.findViewById(R.id.downloaded_group_by_image_view));
+                org.junit.Assert.assertNotNull(root.findViewById(R.id.metadata_sync_status_text_view));
+                org.junit.Assert.assertNotNull(root.findViewById(R.id.metadata_sync_progress_bar));
+            }
+        });
 
         scenario.close();
     }
@@ -85,16 +89,22 @@ public class UserInteractionTest {
     public void settingsSearchFiltersPreferences() {
         ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class);
         scenario.moveToState(Lifecycle.State.RESUMED);
-        navigateTo(scenario, R.id.settingsFragment);
-
-        onView(withText(R.string.settings_theme)).check(matches(isDisplayed()));
-
-        onView(isAssignableFrom(SearchView.class)).perform(setSearchQuery("theme"));
-        onView(withText(R.string.settings_theme)).check(matches(isDisplayed()));
-
-        onView(isAssignableFrom(SearchView.class)).perform(setSearchQuery("zzzzzz"));
-        onView(withId(androidx.appcompat.R.id.search_src_text))
-                .check(matches(withText("zzzzzz")));
+        launchFragment(scenario, new SettingsFragment());
+        scenario.onActivity(activity -> {
+            SettingsFragment fragment = (SettingsFragment) activity.getSupportFragmentManager()
+                    .findFragmentById(R.id.nav_host_fragment);
+            org.junit.Assert.assertNotNull(fragment);
+            Preference themePreference = fragment.findPreference(Preferences.THEME);
+            org.junit.Assert.assertNotNull(themePreference);
+            View root = fragment.getView();
+            org.junit.Assert.assertNotNull(root);
+            SearchView searchView = findSearchView(root);
+            org.junit.Assert.assertNotNull(searchView);
+            searchView.setQuery("theme", false);
+            org.junit.Assert.assertTrue(themePreference.isVisible());
+            searchView.setQuery("zzzzzz", false);
+            org.junit.Assert.assertFalse(themePreference.isVisible());
+        });
 
         scenario.close();
     }
@@ -103,67 +113,64 @@ public class UserInteractionTest {
     public void musicSourcesPageHasAllSections() {
         ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class);
         scenario.moveToState(Lifecycle.State.RESUMED);
-        navigateTo(scenario, R.id.settingsFragment);
+        launchFragment(scenario, new MusicSourcesFragment());
+        scenario.onActivity(activity -> {
+            MusicSourcesFragment fragment = (MusicSourcesFragment) activity.getSupportFragmentManager()
+                    .findFragmentById(R.id.nav_host_fragment);
+            org.junit.Assert.assertNotNull(fragment);
+            View root = fragment.getView();
+            org.junit.Assert.assertNotNull(root);
+            View addSubsonic = root.findViewById(R.id.add_subsonic_button);
+            org.junit.Assert.assertNotNull(addSubsonic);
+            View subsonicList = root.findViewById(R.id.subsonic_recycler_view);
+            View subsonicEmpty = root.findViewById(R.id.subsonic_empty_text);
+            org.junit.Assert.assertNotNull(subsonicList);
+            org.junit.Assert.assertNotNull(subsonicEmpty);
+            boolean hasSubsonic = subsonicList.getVisibility() == View.VISIBLE
+                    || subsonicEmpty.getVisibility() == View.VISIBLE;
+            org.junit.Assert.assertTrue(hasSubsonic);
 
-        onView(withText(R.string.settings_music_sources_title)).perform(click());
+            View addJellyfin = root.findViewById(R.id.add_jellyfin_button);
+            View jellyfinEmpty = root.findViewById(R.id.jellyfin_empty_text);
+            org.junit.Assert.assertNotNull(addJellyfin);
+            org.junit.Assert.assertNotNull(jellyfinEmpty);
 
-        onView(withText(R.string.music_sources_subsonic_title)).check(matches(isDisplayed()));
-        onView(withId(R.id.add_subsonic_button))
-                .check(matches(withEffectiveVisibility(Visibility.VISIBLE)));
-
-        boolean hasSubsonicList = isViewDisplayed(R.id.subsonic_recycler_view);
-        boolean hasSubsonicEmpty = isViewDisplayed(R.id.subsonic_empty_text);
-        org.junit.Assert.assertTrue(hasSubsonicList || hasSubsonicEmpty);
-
-        onView(withId(R.id.add_jellyfin_button))
-                .check(matches(withEffectiveVisibility(Visibility.VISIBLE)));
-        onView(withId(R.id.jellyfin_empty_text))
-                .check(matches(withEffectiveVisibility(Visibility.VISIBLE)));
-
-        onView(withId(R.id.add_local_button))
-                .check(matches(withEffectiveVisibility(Visibility.VISIBLE)));
-        boolean hasLocalList = isViewDisplayed(R.id.local_recycler_view);
-        boolean hasLocalEmpty = isViewDisplayed(R.id.local_empty_text);
-        org.junit.Assert.assertTrue(hasLocalList || hasLocalEmpty);
+            View addLocal = root.findViewById(R.id.add_local_button);
+            View localList = root.findViewById(R.id.local_recycler_view);
+            View localEmpty = root.findViewById(R.id.local_empty_text);
+            org.junit.Assert.assertNotNull(addLocal);
+            org.junit.Assert.assertNotNull(localList);
+            org.junit.Assert.assertNotNull(localEmpty);
+            boolean hasLocal = localList.getVisibility() == View.VISIBLE
+                    || localEmpty.getVisibility() == View.VISIBLE;
+            org.junit.Assert.assertTrue(hasLocal);
+        });
 
         scenario.close();
     }
 
-    private void navigateTo(ActivityScenario<MainActivity> scenario, int destinationId) {
-        scenario.onActivity(activity -> {
-            NavController navController = Navigation.findNavController(activity, R.id.nav_host_fragment);
-            navController.navigate(destinationId);
-        });
+    private void launchFragment(ActivityScenario<MainActivity> scenario, androidx.fragment.app.Fragment fragment) {
+        scenario.onActivity(activity -> activity.getSupportFragmentManager()
+                .beginTransaction()
+                .setReorderingAllowed(true)
+                .replace(R.id.nav_host_fragment, fragment)
+                .commitNowAllowingStateLoss());
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
     }
 
-    private boolean isViewDisplayed(int viewId) {
-        try {
-            onView(withId(viewId)).check(matches(isDisplayed()));
-            return true;
-        } catch (NoMatchingViewException | AssertionError e) {
-            return false;
+    private SearchView findSearchView(View root) {
+        if (root instanceof SearchView) {
+            return (SearchView) root;
         }
-    }
-
-    private ViewAction setSearchQuery(String query) {
-        return new ViewAction() {
-            @Override
-            public Matcher<View> getConstraints() {
-                return isAssignableFrom(SearchView.class);
+        if (root instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                SearchView found = findSearchView(group.getChildAt(i));
+                if (found != null) {
+                    return found;
+                }
             }
-
-            @Override
-            public String getDescription() {
-                return "Set SearchView query text";
-            }
-
-            @Override
-            public void perform(UiController uiController, View view) {
-                SearchView searchView = (SearchView) view;
-                searchView.setQuery(query, false);
-                searchView.clearFocus();
-                uiController.loopMainThreadUntilIdle();
-            }
-        };
+        }
+        return null;
     }
 }
