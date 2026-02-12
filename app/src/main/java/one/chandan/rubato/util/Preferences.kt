@@ -102,6 +102,12 @@ object Preferences {
     private const val QUEUE_SWIPE_RIGHT_ACTION = "queue_swipe_right_action"
     private const val LOCAL_TELEMETRY_ENABLED = "local_telemetry_enabled"
     private const val LOCAL_MUSIC_ENABLED = "local_music_enabled"
+    private const val AUTO_SHUFFLE_ACTIVE = "auto_shuffle_active"
+    private const val AUTO_SHUFFLE_SEED = "auto_shuffle_seed"
+    private const val AUTO_SHUFFLE_INDEX = "auto_shuffle_index"
+    private const val AUTO_SHUFFLE_CONSUMED = "auto_shuffle_consumed"
+    private const val AUTO_SHUFFLE_SESSION = "auto_shuffle_session"
+    private const val AUTO_SHUFFLE_RECENT = "auto_shuffle_recent"
     private const val DOWNLOAD_EXPORT_MODE = "download_export_mode"
     private const val DOWNLOAD_EXPORT_FOLDER = "download_export_folder"
     private const val VISUALIZER_ENABLED = "visualizer_enabled"
@@ -722,6 +728,77 @@ object Preferences {
     @JvmStatic
     fun setLocalMusicEnabled(enabled: Boolean) {
         App.getInstance().preferences.edit().putBoolean(LOCAL_MUSIC_ENABLED, enabled).apply()
+    }
+
+    @JvmStatic
+    fun isAutoShuffleActive(): Boolean {
+        return App.getInstance().preferences.getBoolean(AUTO_SHUFFLE_ACTIVE, false)
+    }
+
+    @JvmStatic
+    fun setAutoShuffleActive(active: Boolean) {
+        App.getInstance().preferences.edit().putBoolean(AUTO_SHUFFLE_ACTIVE, active).apply()
+    }
+
+    @JvmStatic
+    fun getAutoShuffleSeed(): Long {
+        return App.getInstance().preferences.getLong(AUTO_SHUFFLE_SEED, 0L)
+    }
+
+    @JvmStatic
+    fun setAutoShuffleSeed(seed: Long) {
+        App.getInstance().preferences.edit().putLong(AUTO_SHUFFLE_SEED, seed).apply()
+    }
+
+    @JvmStatic
+    fun getAutoShuffleIndex(): Int {
+        return App.getInstance().preferences.getInt(AUTO_SHUFFLE_INDEX, 0)
+    }
+
+    @JvmStatic
+    fun setAutoShuffleIndex(index: Int) {
+        App.getInstance().preferences.edit().putInt(AUTO_SHUFFLE_INDEX, index).apply()
+    }
+
+    @JvmStatic
+    fun getAutoShuffleConsumed(): Int {
+        return App.getInstance().preferences.getInt(AUTO_SHUFFLE_CONSUMED, 0)
+    }
+
+    @JvmStatic
+    fun setAutoShuffleConsumed(consumed: Int) {
+        App.getInstance().preferences.edit().putInt(AUTO_SHUFFLE_CONSUMED, consumed).apply()
+    }
+
+    @JvmStatic
+    fun getAutoShuffleSessionId(): Long {
+        return App.getInstance().preferences.getLong(AUTO_SHUFFLE_SESSION, 0L)
+    }
+
+    @JvmStatic
+    fun setAutoShuffleSessionId(sessionId: Long) {
+        App.getInstance().preferences.edit().putLong(AUTO_SHUFFLE_SESSION, sessionId).apply()
+    }
+
+    @JvmStatic
+    fun getAutoShuffleRecentIds(): List<String> {
+        val stored = App.getInstance().preferences.getString(AUTO_SHUFFLE_RECENT, null)
+        if (stored.isNullOrBlank() || stored == "null") return emptyList()
+        return try {
+            val type = object : TypeToken<List<String>>() {}.type
+            Gson().fromJson(stored, type)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    @JvmStatic
+    fun setAutoShuffleRecentIds(ids: List<String>?) {
+        if (ids.isNullOrEmpty()) {
+            App.getInstance().preferences.edit().putString(AUTO_SHUFFLE_RECENT, null).apply()
+            return
+        }
+        App.getInstance().preferences.edit().putString(AUTO_SHUFFLE_RECENT, Gson().toJson(ids)).apply()
     }
 
     @JvmStatic

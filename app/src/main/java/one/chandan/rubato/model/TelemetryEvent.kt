@@ -20,5 +20,9 @@ data class TelemetryEvent(
     @ColumnInfo(name = "detail")
     val detail: String?,
     @ColumnInfo(name = "duration_ms")
-    val durationMs: Long
+    val durationMs: Long,
+    @ColumnInfo(name = "source")
+    val source: String? = null,
+    @ColumnInfo(name = "error")
+    val error: String? = null
 )

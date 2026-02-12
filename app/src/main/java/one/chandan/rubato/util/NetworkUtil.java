@@ -7,6 +7,8 @@ import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
 
 import one.chandan.rubato.App;
+import one.chandan.rubato.util.ServerConfigUtil;
+import one.chandan.rubato.util.ServerStatus;
 
 public class NetworkUtil {
     public static boolean hasInternet() {
@@ -19,8 +21,7 @@ public class NetworkUtil {
                 NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
 
                 if (capabilities != null) {
-                    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                            && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
+                    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
                 }
             }
         }
@@ -29,6 +30,6 @@ public class NetworkUtil {
     }
 
     public static boolean isOffline() {
-        return !hasInternet() || !ServerStatus.isReachable();
+        return !hasInternet();
     }
 }

@@ -3,6 +3,7 @@ package one.chandan.rubato;
 import android.app.Application;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.StrictMode;
 
 import androidx.annotation.NonNull;
 import androidx.preference.PreferenceManager;
@@ -11,6 +12,7 @@ import one.chandan.rubato.github.Github;
 import one.chandan.rubato.helper.ThemeHelper;
 import one.chandan.rubato.subsonic.Subsonic;
 import one.chandan.rubato.subsonic.SubsonicPreferences;
+import one.chandan.rubato.util.PerformanceMarkers;
 import one.chandan.rubato.util.Preferences;
 
 public class App extends Application {
@@ -23,6 +25,21 @@ public class App extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
+        PerformanceMarkers.start("app_start");
+
+        if (BuildConfig.DEBUG) {
+            StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder()
+                    .detectDiskReads()
+                    .detectDiskWrites()
+                    .detectNetwork()
+                    .penaltyLog()
+                    .build());
+            StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder()
+                    .detectLeakedSqlLiteObjects()
+                    .detectLeakedClosableObjects()
+                    .penaltyLog()
+                    .build());
+        }
 
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         String themePref = sharedPreferences.getString(Preferences.THEME, ThemeHelper.DEFAULT_MODE);

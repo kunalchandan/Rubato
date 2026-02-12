@@ -138,20 +138,29 @@ public class Subsonic {
     }
 
     public String getUrl() {
-        String url = preferences.getServerUrl() + "/rest/";
+        String serverUrl = preferences.getServerUrl();
+        if (serverUrl == null || serverUrl.trim().isEmpty()) {
+            return "http://localhost/rest/";
+        }
+
+        String url = serverUrl + "/rest/";
         return url.replace("//rest", "/rest");
     }
 
     public Map<String, String> getParams() {
         Map<String, String> params = new HashMap<>();
-        params.put("u", preferences.getUsername());
+        if (preferences.getUsername() != null) {
+            params.put("u", preferences.getUsername());
+        }
 
-        if (preferences.getAuthentication().getPassword() != null)
-            params.put("p", preferences.getAuthentication().getPassword());
-        if (preferences.getAuthentication().getSalt() != null)
-            params.put("s", preferences.getAuthentication().getSalt());
-        if (preferences.getAuthentication().getToken() != null)
-            params.put("t", preferences.getAuthentication().getToken());
+        if (preferences.getAuthentication() != null) {
+            if (preferences.getAuthentication().getPassword() != null)
+                params.put("p", preferences.getAuthentication().getPassword());
+            if (preferences.getAuthentication().getSalt() != null)
+                params.put("s", preferences.getAuthentication().getSalt());
+            if (preferences.getAuthentication().getToken() != null)
+                params.put("t", preferences.getAuthentication().getToken());
+        }
 
         params.put("v", getApiVersion().getVersionString());
         params.put("c", preferences.getClientName());

@@ -6,6 +6,7 @@ import one.chandan.rubato.jellyfin.model.JellyfinAuthRequest;
 import one.chandan.rubato.jellyfin.model.JellyfinAuthResponse;
 import one.chandan.rubato.jellyfin.model.JellyfinView;
 import one.chandan.rubato.jellyfin.model.JellyfinViewsResponse;
+import one.chandan.rubato.util.Preferences;
 import com.google.gson.GsonBuilder;
 
 import okhttp3.OkHttpClient;
@@ -99,6 +100,9 @@ public class JellyfinAuthRepository {
             return "https://";
         }
         String trimmed = input.trim();
+        if (trimmed.startsWith("http://") && !Preferences.isLowScurity()) {
+            trimmed = "https://" + trimmed.substring("http://".length());
+        }
         return trimmed.endsWith("/") ? trimmed : trimmed + "/";
     }
 }

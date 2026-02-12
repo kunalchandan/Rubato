@@ -20,10 +20,9 @@ import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public final class DownloadExportUtil {
-    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor();
+    private static final ExecutorService EXECUTOR = AppExecutors.export();
 
     private DownloadExportUtil() {
     }

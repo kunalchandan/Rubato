@@ -22,6 +22,13 @@ public final class JellyfinMediaUtil {
         }
         String serverId = raw.substring(0, split);
         String itemId = raw.substring(split + 1);
+        if (SearchIndexUtil.SOURCE_JELLYFIN.equals(serverId)) {
+            int nestedSplit = itemId.indexOf(':');
+            if (nestedSplit > 0 && nestedSplit < itemId.length() - 1) {
+                serverId = itemId.substring(0, nestedSplit);
+                itemId = itemId.substring(nestedSplit + 1);
+            }
+        }
         return new JellyfinTaggedId(serverId, itemId);
     }
 

@@ -29,7 +29,6 @@ import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.util.ArrayList;
-import java.util.concurrent.Executors;
 
 @UnstableApi
 public final class DownloadUtil {
@@ -155,7 +154,7 @@ public final class DownloadUtil {
                     getDatabaseProvider(context),
                     getDownloadCache(context),
                     getHttpDataSourceFactory(),
-                    Executors.newFixedThreadPool(6)
+                    AppExecutors.downloads()
             );
 
             downloaderManager = new DownloaderManager(context, getHttpDataSourceFactory(), downloadManager);

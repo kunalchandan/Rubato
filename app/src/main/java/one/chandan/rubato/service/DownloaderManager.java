@@ -21,6 +21,7 @@ import androidx.media3.exoplayer.offline.DownloadService;
 import one.chandan.rubato.repository.DownloadRepository;
 import one.chandan.rubato.repository.LocalMusicRepository;
 import one.chandan.rubato.util.DownloadUtil;
+import one.chandan.rubato.util.OfflinePolicy;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -72,6 +73,10 @@ public class DownloaderManager {
 
     public void download(MediaItem mediaItem, one.chandan.rubato.model.Download download) {
         if (mediaItem == null || LocalMusicRepository.isLocalId(mediaItem.mediaId)) {
+            return;
+        }
+        if (OfflinePolicy.isOffline()) {
+            Log.w(TAG, "Download skipped while offline");
             return;
         }
         download.setDownloadUri(mediaItem.requestMetadata.mediaUri.toString());
