@@ -1,6 +1,9 @@
 # CHANGELOG (Rubato fork)
 All changes since the upstream base.
-Last updated: 2026-02-06
+Last updated: 2026-02-12
+
+## Recent updates (2026-02-12)
+- Introduced domain models and source adapters to unify multi-source media metadata.
 
 ## Recent updates (2026-02-06)
 - Android Auto: removed the top-level "Made for you" browse page and disabled AA search commands to eliminate the split-screen "For you / What do you want to listen to?" surface.
