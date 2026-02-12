@@ -4,6 +4,8 @@ import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.app.PendingIntent.FLAG_UPDATE_CURRENT
 import android.app.TaskStackBuilder
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.media3.cast.CastPlayer
 import androidx.media3.cast.SessionAvailabilityListener
@@ -19,12 +21,13 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession.ControllerInfo
 import one.chandan.rubato.BuildConfig
-import one.chandan.rubato.repository.AutomotiveRepository
+import one.chandan.rubato.repository.AutoLibraryRepository
 import one.chandan.rubato.ui.activity.MainActivity
 import one.chandan.rubato.util.Constants
 import one.chandan.rubato.util.DownloadUtil
 import one.chandan.rubato.util.Preferences
 import one.chandan.rubato.util.ReplayGainUtil
+import one.chandan.rubato.util.AudioSessionStore
 import one.chandan.rubato.widget.WidgetUpdateHelper
 import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.common.ConnectionResult
@@ -32,10 +35,11 @@ import com.google.android.gms.common.GoogleApiAvailability
 
 @UnstableApi
 class MediaService : MediaLibraryService(), SessionAvailabilityListener {
-    private lateinit var automotiveRepository: AutomotiveRepository
+    private lateinit var autoLibraryRepository: AutoLibraryRepository
     private lateinit var player: ExoPlayer
     private lateinit var castPlayer: CastPlayer
     private lateinit var mediaLibrarySession: MediaLibrarySession
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val tag = "MediaService"
 
     override fun onCreate() {
@@ -73,12 +77,16 @@ class MediaService : MediaLibraryService(), SessionAvailabilityListener {
     }
 
     override fun onDestroy() {
+        if (this::autoLibraryRepository.isInitialized) {
+            autoLibraryRepository.shutdown()
+        }
         releasePlayer()
         super.onDestroy()
     }
 
     private fun initializeRepository() {
-        automotiveRepository = AutomotiveRepository()
+        autoLibraryRepository = AutoLibraryRepository()
+        autoLibraryRepository.logHealthSnapshot("service_create")
     }
 
     private fun initializePlayer() {
@@ -116,7 +124,7 @@ class MediaService : MediaLibraryService(), SessionAvailabilityListener {
     }
 
     private fun createLibrarySessionCallback(): MediaLibrarySession.Callback {
-        return MediaLibrarySessionCallback(this, automotiveRepository)
+        return MediaLibrarySessionCallback(this, autoLibraryRepository)
     }
 
     private fun initializePlayerListener() {
@@ -126,6 +134,14 @@ class MediaService : MediaLibraryService(), SessionAvailabilityListener {
 
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK || reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
                     MediaManager.setLastPlayedTimestamp(mediaItem)
+                }
+                val incrementConsumed = reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ||
+                        reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
+                val remaining = player.mediaItemCount - player.currentMediaItemIndex - 1
+                autoLibraryRepository.onShuffleAdvance(mediaItem, incrementConsumed, remaining) { items ->
+                    if (items.isNotEmpty()) {
+                        mainHandler.post { player.addMediaItems(items) }
+                    }
                 }
                 WidgetUpdateHelper.requestUpdate(this@MediaService)
             }
@@ -151,6 +167,10 @@ class MediaService : MediaLibraryService(), SessionAvailabilityListener {
                     MediaManager.scrobble(player.currentMediaItem, false)
                 }
                 WidgetUpdateHelper.requestUpdate(this@MediaService)
+            }
+
+            override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                AudioSessionStore.updateAudioSessionId(audioSessionId)
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -189,6 +209,7 @@ class MediaService : MediaLibraryService(), SessionAvailabilityListener {
                 WidgetUpdateHelper.requestUpdate(this@MediaService)
             }
         })
+        AudioSessionStore.updateAudioSessionId(player.audioSessionId)
     }
 
     private fun initializeLoadControl(): DefaultLoadControl {
@@ -213,7 +234,7 @@ class MediaService : MediaLibraryService(), SessionAvailabilityListener {
         if (this::castPlayer.isInitialized) castPlayer.release()
         player.release()
         mediaLibrarySession.release()
-        automotiveRepository.deleteMetadata()
+        autoLibraryRepository.clearSessionCache()
         clearListener()
     }
 

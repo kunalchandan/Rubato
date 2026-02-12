@@ -6,6 +6,7 @@ Last updated: 2026-02-12
 - Introduced domain models and source adapters to unify multi-source media metadata.
 - Added a unified LibraryRepository with cross-source aggregation, dedupe, and search indexing.
 - Added a sync orchestrator with delta policies, offline gating, and cover-art prefetch/storage reporting.
+- Refactored playback queue building and media-item mapping for unified source IDs.
 
 ## Recent updates (2026-02-06)
 - Android Auto: removed the top-level "Made for you" browse page and disabled AA search commands to eliminate the split-screen "For you / What do you want to listen to?" surface.

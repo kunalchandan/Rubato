@@ -12,6 +12,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import one.chandan.rubato.glide.CustomGlideRequest
+import one.chandan.rubato.provider.AutoArtworkProvider
 import one.chandan.rubato.subsonic.models.Child
 import one.chandan.rubato.subsonic.models.InternetRadioStation
 import one.chandan.rubato.subsonic.models.PodcastEpisode
@@ -196,7 +197,9 @@ class SessionMediaItem() {
 
     fun getMediaItem(): MediaItem {
         val uri: Uri = getStreamUri()
-        val artworkUri = Uri.parse(CustomGlideRequest.createUrl(coverArtId, getImageSize()))
+        val artworkUrl = CustomGlideRequest.createUrl(coverArtId, getImageSize())
+        val artworkUri = if (!artworkUrl.isNullOrBlank()) Uri.parse(artworkUrl) else null
+        val wrappedArtworkUri = AutoArtworkProvider.buildCoverUri(artworkUri) ?: artworkUri
 
         val bundle = Bundle()
         bundle.putString("id", id)
@@ -242,7 +245,7 @@ class SessionMediaItem() {
                     .setReleaseYear(year ?: 0)
                     .setAlbumTitle(album)
                     .setArtist(artist)
-                    .setArtworkUri(artworkUri)
+                    .setArtworkUri(wrappedArtworkUri)
                     .setExtras(bundle)
                     .setIsBrowsable(false)
                     .setIsPlayable(true)
